@@ -1,5 +1,46 @@
 # Release Notes
 
+## [0.5.0] - 2025-01-24
+
+### Added
+- **Complete hop tracking system rebuild from scratch**
+  - New centralized `hop_tracker.py` module for all hop calculations
+  - Comprehensive file system logging to `logs/` directory
+  - Real-time hop tracking with min/max hop history
+  - Automatic hop count detection for packets without `hopStart` field
+- **File system logging for debugging**
+  - `hop_tracker.log` - Detailed hop calculations
+  - `node_updates.log` - Node metadata changes
+  - `packets.jsonl` - Raw packet data in JSON Lines format
+- **Node filtering in dashboard**
+  - "Only show nodes with packets" toggle button
+  - Shows count of visible vs total nodes
+  - Distinguishes between nodes from device database vs active nodes
+
+### Fixed
+- **Hop count tracking now works for ALL packet types**
+  - Handles missing `hopStart` field (common in telemetry packets)
+  - Assumes direct connection when `hopLimit=3` and no `hopStart`
+  - Properly calculates hops for packets with partial hop data
+- **Node ID consistency issues resolved**
+  - All node IDs normalized to strings
+  - Removes "!" prefix from packet IDs
+  - Eliminates duplicate node entries ("split-brain" problem)
+- **HTML rendering artifacts completely eliminated**
+  - Removed nested div structures causing `</div>` tags
+  - Simplified signal strength display
+  - Clean hop count badges without HTML escaping issues
+
+### Improved
+- **Better hop count display**
+  - Shows actual hop counts for nodes sending packets
+  - "UNKNOWN" only for nodes that haven't sent packets yet
+  - Explains why some nodes show without hop counts (from device database)
+- **Enhanced logging and debugging**
+  - Hop summary statistics in sidebar
+  - Distribution of nodes by hop count
+  - Real-time packet monitoring capabilities
+
 ## [0.4.2] - 2025-01-24
 
 ### Fixed

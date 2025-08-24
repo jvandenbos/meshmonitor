@@ -17,6 +17,7 @@ sys.path.insert(0, '.')
 from app.device.service import meshtastic_service
 from app.device.message_store import message_store
 from app.device.connection import device
+from app.device.hop_tracker import hop_tracker
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -189,13 +190,33 @@ def main():
         for msg_type, count in stats["message_types"].items():
             st.text(f"{msg_type}: {count}")
         
-        # Routing Info
-        st.header("🛣️ Routing Info")
+        # Hop Tracking Statistics
+        st.header("🛣️ Hop Tracking Statistics")
+        hop_summary = hop_tracker.get_hop_summary()
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Direct Nodes", hop_summary.get("direct_nodes", 0))
+            st.metric("Indirect Nodes", hop_summary.get("indirect_nodes", 0))
+        with col2:
+            st.metric("Unknown Hops", hop_summary.get("unknown_nodes", 0))
+            st.metric("Total Tracked", hop_summary.get("total_nodes", 0))
+        
+        # Hop distribution
+        if hop_summary.get("hop_distribution"):
+            st.subheader("Hop Distribution")
+            for hops, count in sorted(hop_summary["hop_distribution"].items()):
+                if hops == 0:
+                    st.text(f"Direct (0 hops): {count} nodes")
+                else:
+                    st.text(f"{hops} hop{'s' if hops > 1 else ''}: {count} nodes")
+        
         st.info("""
-        **Available Routing Data:**
-        • Hop Count: Number of hops each packet took
-        • Direct connections show signal strength
-        • RSSI/SNR for direct connections only
+        **Hop Tracking Active:**
+        • All packets are being logged to `logs/`
+        • Node updates tracked in `node_updates.log`
+        • Hop calculations in `hop_tracker.log`
+        • Raw packets in `packets.jsonl`
         
         **Note:** Meshtastic doesn't expose full routing 
         paths, only hop counts and direct neighbor info.
@@ -264,13 +285,31 @@ def main():
         with col2:
             st.header("🌐 Network Nodes")
             
-            # Sort by proximity toggle
-            sort_proximity = st.checkbox("Sort by proximity", value=True)
+            # Filter options
+            col_filter1, col_filter2 = st.columns(2)
+            with col_filter1:
+                sort_proximity = st.checkbox("Sort by proximity", value=True)
+            with col_filter2:
+                show_only_with_packets = st.checkbox("Only show nodes with packets", value=False, 
+                                                    help="Show only nodes we've received packets from")
             
             # Get nodes
             nodes = message_store.get_nodes(sort_by_proximity=sort_proximity)
             
+            # Filter nodes if requested
+            if show_only_with_packets:
+                # Only show nodes that have hop data (hops >= 0)
+                nodes = [n for n in nodes if n.get("hops", -1) >= 0]
+            
             if nodes:
+                # Show count
+                total_nodes = len(message_store.nodes)
+                visible_nodes = len(nodes)
+                if show_only_with_packets:
+                    st.caption(f"Showing {visible_nodes} nodes with packets (out of {total_nodes} total)")
+                else:
+                    st.caption(f"Showing all {visible_nodes} nodes")
+                
                 # Display nodes
                 for node in nodes:
                     node_id = node.get("id", "unknown")
@@ -290,60 +329,30 @@ def main():
                     has_position = bool(position.get("latitude"))
                     
                     # Get hop and signal info
-                    hops = node.get("hops", "?")
+                    hops = node.get("hops", -1)
                     is_direct = node.get("is_direct", False) or hops == 0
                     rssi = node.get("rssi")
                     snr = node.get("snr")
                     
-                    # Connection type indicator with prominent display
+                    # Simple, clean hop display without nested HTML
                     if is_direct:
-                        # Create signal strength bar for direct connections
+                        hop_str = '<span style="background: #00FFFF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">📡 DIRECT</span>'
+                        # Add signal strength as separate element if available
                         if rssi:
-                            # RSSI typically ranges from -120 (weak) to -40 (strong)
                             if rssi > -60:
-                                signal_bar = f"""
-                                <div style="display: inline-block; vertical-align: middle;">
-                                    <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
-                                    <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
-                                        <div style="position: absolute; right: 0; top: 0; width: 90%; height: 100%; background: #39FF14; border-radius: 3px;"></div>
-                                    </div>
-                                    <span style="color: #39FF14; font-weight: bold;">{rssi}dBm</span>
-                                </div>
-                                """
+                                signal_color = "#39FF14"
+                                signal_label = "Excellent"
                             elif rssi > -75:
-                                signal_bar = f"""
-                                <div style="display: inline-block; vertical-align: middle;">
-                                    <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
-                                    <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
-                                        <div style="position: absolute; left: 0; top: 0; width: 70%; height: 100%; background: linear-gradient(to right, #FF0000, #FFD700); border-radius: 3px;"></div>
-                                    </div>
-                                    <span style="color: #FFD700; font-weight: bold;">{rssi}dBm</span>
-                                </div>
-                                """
+                                signal_color = "#FFD700"
+                                signal_label = "Good"
                             elif rssi > -85:
-                                signal_bar = f"""
-                                <div style="display: inline-block; vertical-align: middle;">
-                                    <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
-                                    <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
-                                        <div style="position: absolute; left: 0; top: 0; width: 50%; height: 100%; background: linear-gradient(to right, #FF0000, #FFA500); border-radius: 3px;"></div>
-                                    </div>
-                                    <span style="color: #FFA500; font-weight: bold;">{rssi}dBm</span>
-                                </div>
-                                """
+                                signal_color = "#FFA500"
+                                signal_label = "Fair"
                             else:
-                                signal_bar = f"""
-                                <div style="display: inline-block; vertical-align: middle;">
-                                    <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
-                                    <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
-                                        <div style="position: absolute; left: 0; top: 0; width: 25%; height: 100%; background: #FF0000; border-radius: 3px;"></div>
-                                    </div>
-                                    <span style="color: #FF0000; font-weight: bold;">{rssi}dBm</span>
-                                </div>
-                                """
-                            hop_str = f'<span style="background: #00FFFF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">📡 DIRECT</span><br>{signal_bar}'
-                        else:
-                            hop_str = '<span style="background: #00FFFF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">📡 DIRECT</span>'
-                    elif hops != "?":
+                                signal_color = "#FF0000"
+                                signal_label = "Weak"
+                            hop_str += f'<br><span style="color: {signal_color}; font-size: 0.9em;">Signal: {rssi}dBm ({signal_label})</span>'
+                    elif hops >= 0:
                         hop_str = f'<span style="background: #FF00FF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">↗️ {hops} HOP{"S" if hops != 1 else ""}</span>'
                     else:
                         hop_str = '<span style="background: #80808022; padding: 2px 6px; border-radius: 3px;">❓ UNKNOWN</span>'

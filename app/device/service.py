@@ -7,6 +7,7 @@ from datetime import datetime
 
 from app.device.connection import device
 from app.device.message_store import message_store
+from app.device.hop_tracker import hop_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -117,20 +118,27 @@ class MeshtasticService:
         }
         message_store.add_message(message_data)
         
-        # Update node hop count and signal info if available
+        # Update node with hop and signal info from the centralized tracker
         if "from" in data:
             node_id = data.get("from")
             node_update = {}
             
-            # Track hop count
-            if "hops" in data:
+            # Get hop count from data (already processed by hop_tracker in connection.py)
+            if "hops" in data and data["hops"] >= 0:
                 node_update["hops"] = data["hops"]
-                node_update["is_direct"] = data["hops"] == 0
+                node_update["is_direct"] = data.get("is_direct", data["hops"] == 0)
             
             # Track signal strength for direct connections
-            if "rssi" in data and data.get("hops", 0) == 0:
+            if "rssi" in data and data.get("is_direct", False):
                 node_update["rssi"] = data["rssi"]
                 node_update["snr"] = data.get("snr")
+            
+            # Get additional hop statistics from tracker
+            hop_data = hop_tracker.get_node_hop_data(node_id)
+            if hop_data["current_hops"] >= 0:
+                node_update["min_hops"] = hop_data.get("min_hops", -1)
+                node_update["max_hops"] = hop_data.get("max_hops", -1)
+                node_update["hop_history_count"] = len(hop_data.get("hop_history", []))
             
             if node_update:
                 message_store.add_or_update_node(node_id, node_update)
@@ -186,6 +194,9 @@ class MeshtasticService:
     
     def _process_node_data(self, node_id: str, node_data: Dict[str, Any]):
         """Process node data from the device."""
+        # Normalize node ID
+        node_id = hop_tracker.normalize_node_id(node_id)
+        
         processed_data = {
             "id": node_id
         }
@@ -219,6 +230,11 @@ class MeshtasticService:
                 "air_util_tx": metrics.get("airUtilTx"),
                 "channel_utilization": metrics.get("channelUtilization")
             }
+        
+        # Include hop data if available from node_data
+        if "hops" in node_data and node_data["hops"] >= 0:
+            processed_data["hops"] = node_data["hops"]
+            processed_data["is_direct"] = node_data.get("is_direct", node_data["hops"] == 0)
         
         # Other metadata
         processed_data["last_heard"] = node_data.get("lastHeard")

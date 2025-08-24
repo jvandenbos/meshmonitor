@@ -11,6 +11,7 @@ from pubsub import pub
 
 from app.config import settings
 from app.utils.error_handler import error_handler, DeviceConnectionError, MessageProcessingError
+from app.device.hop_tracker import hop_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -105,15 +106,21 @@ class MeshtasticDevice:
     def _on_text_message(self, packet, interface):
         """Handle incoming text messages."""
         try:
+            # Get node ID and update hop tracking
+            from_id = packet.get("fromId", "unknown")
+            hop_data = hop_tracker.update_node_hops(from_id, packet)
+            
             message_data = {
                 "type": "text",
-                "from": packet.get("fromId", "unknown"),
+                "from": hop_tracker.normalize_node_id(from_id),
                 "to": packet.get("toId", "all"),
                 "text": packet.get("decoded", {}).get("text", ""),
                 "channel": packet.get("channel", 0),
                 "timestamp": datetime.now().isoformat(),
                 "rssi": packet.get("rxRssi"),
                 "snr": packet.get("rxSnr"),
+                "hops": hop_data.get("current_hops", -1),
+                "is_direct": hop_data.get("is_direct", False),
                 "hop_limit": packet.get("hopLimit"),
                 "raw": packet
             }
@@ -127,14 +134,20 @@ class MeshtasticDevice:
     def _on_position(self, packet, interface):
         """Handle position updates."""
         try:
+            # Get node ID and update hop tracking
+            from_id = packet.get("fromId", "unknown")
+            hop_data = hop_tracker.update_node_hops(from_id, packet)
+            
             position = packet.get("decoded", {}).get("position", {})
             position_data = {
                 "type": "position",
-                "from": packet.get("fromId", "unknown"),
+                "from": hop_tracker.normalize_node_id(from_id),
                 "latitude": position.get("latitudeI", 0) / 1e7,
                 "longitude": position.get("longitudeI", 0) / 1e7,
                 "altitude": position.get("altitude", 0),
                 "timestamp": datetime.now().isoformat(),
+                "hops": hop_data.get("current_hops", -1),
+                "is_direct": hop_data.get("is_direct", False),
                 "raw": packet
             }
             
@@ -147,15 +160,21 @@ class MeshtasticDevice:
     def _on_node_info(self, packet, interface):
         """Handle node info updates."""
         try:
+            # Get node ID and update hop tracking
+            from_id = packet.get("fromId", "unknown")
+            hop_data = hop_tracker.update_node_hops(from_id, packet)
+            
             user = packet.get("decoded", {}).get("user", {})
             node_data = {
                 "type": "nodeinfo",
-                "node_id": packet.get("fromId", "unknown"),
+                "node_id": hop_tracker.normalize_node_id(from_id),
                 "long_name": user.get("longName", ""),
                 "short_name": user.get("shortName", ""),
                 "hw_model": user.get("hwModel", ""),
                 "role": user.get("role", ""),
                 "timestamp": datetime.now().isoformat(),
+                "hops": hop_data.get("current_hops", -1),
+                "is_direct": hop_data.get("is_direct", False),
                 "raw": packet
             }
             
@@ -168,10 +187,14 @@ class MeshtasticDevice:
     def _on_telemetry(self, packet, interface):
         """Handle telemetry data."""
         try:
+            # Get node ID and update hop tracking
+            from_id = packet.get("fromId", "unknown")
+            hop_data = hop_tracker.update_node_hops(from_id, packet)
+            
             telemetry = packet.get("decoded", {}).get("telemetry", {})
             telemetry_data = {
                 "type": "telemetry",
-                "from": packet.get("fromId", "unknown"),
+                "from": hop_tracker.normalize_node_id(from_id),
                 "battery_level": telemetry.get("deviceMetrics", {}).get("batteryLevel"),
                 "voltage": telemetry.get("deviceMetrics", {}).get("voltage"),
                 "air_util_tx": telemetry.get("deviceMetrics", {}).get("airUtilTx"),
@@ -180,6 +203,8 @@ class MeshtasticDevice:
                 "humidity": telemetry.get("environmentMetrics", {}).get("relativeHumidity"),
                 "pressure": telemetry.get("environmentMetrics", {}).get("barometricPressure"),
                 "timestamp": datetime.now().isoformat(),
+                "hops": hop_data.get("current_hops", -1),
+                "is_direct": hop_data.get("is_direct", False),
                 "raw": packet
             }
             
@@ -192,21 +217,24 @@ class MeshtasticDevice:
     def _on_packet(self, packet, interface):
         """Handle any packet (for logging all traffic)."""
         try:
-            # Extract hop information
-            hop_limit = packet.get("hopLimit", 0)
-            hop_start = packet.get("hopStart", 3)  # Default max hops is usually 3
-            hops_taken = hop_start - hop_limit if hop_start and hop_limit else 0
+            # Get node ID and update hop tracking
+            from_id = packet.get("fromId", "unknown")
             
+            # Update hop tracker with this packet
+            hop_data = hop_tracker.update_node_hops(from_id, packet)
+            
+            # Build packet data with hop information
             packet_data = {
                 "type": "packet",
-                "from": packet.get("fromId", "unknown"),
+                "from": hop_tracker.normalize_node_id(from_id),
                 "to": packet.get("toId", "all"),
                 "port_num": packet.get("decoded", {}).get("portnum"),
                 "channel": packet.get("channel", 0),
                 "timestamp": datetime.now().isoformat(),
-                "hop_limit": hop_limit,
-                "hop_start": hop_start,
-                "hops": hops_taken,
+                "hop_limit": packet.get("hopLimit"),
+                "hop_start": packet.get("hopStart"),
+                "hops": hop_data.get("current_hops", -1),
+                "is_direct": hop_data.get("is_direct", False),
                 "rssi": packet.get("rxRssi"),
                 "snr": packet.get("rxSnr"),
                 "via_mqtt": packet.get("viaMqtt", False),
@@ -214,6 +242,11 @@ class MeshtasticDevice:
             }
             
             self._emit_message("packet", packet_data)
+            
+            # Log hop summary periodically (every 20 packets)
+            if hop_data.get("packet_count", 0) % 20 == 0:
+                summary = hop_tracker.get_hop_summary()
+                logger.info(f"Hop tracking summary: {summary}")
             
         except Exception as e:
             logger.error(f"Error handling packet: {e}")
@@ -304,13 +337,23 @@ class MeshtasticDevice:
             
             nodes = {}
             for node_id, node in self.interface.nodes.items():
-                nodes[node_id] = {
-                    "id": node_id,
+                # Normalize node ID
+                str_node_id = hop_tracker.normalize_node_id(node_id)
+                
+                # Get hop data for this node
+                hop_data = hop_tracker.get_node_hop_data(str_node_id)
+                
+                nodes[str_node_id] = {
+                    "id": str_node_id,
                     "user": node.get("user", {}),
                     "position": node.get("position", {}),
                     "lastHeard": node.get("lastHeard"),
                     "snr": node.get("snr"),
-                    "deviceMetrics": node.get("deviceMetrics", {})
+                    "deviceMetrics": node.get("deviceMetrics", {}),
+                    "hops": hop_data.get("current_hops", -1),
+                    "is_direct": hop_data.get("is_direct", False),
+                    "min_hops": hop_data.get("min_hops", -1),
+                    "max_hops": hop_data.get("max_hops", -1)
                 }
             
             return nodes
