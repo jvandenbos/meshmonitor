@@ -246,3 +246,51 @@ def test_auto_refresh_toggle(page: Page, dashboard_server):
     # Re-check it
     auto_refresh.click()
     expect(auto_refresh).to_be_checked()
+
+
+def test_no_html_tags_visible(page: Page, dashboard_server):
+    """Test that no raw HTML tags are visible in the UI - CRITICAL TEST."""
+    page.goto(dashboard_server)
+    page.wait_for_timeout(3000)  # Wait for content to fully load
+    
+    # Check for common HTML tags that should NEVER be visible as text
+    html_patterns = [
+        '<div', '</div>', '<span', '</span>', '<br>', '<br/>', '<br />',
+        '<strong>', '</strong>', '<style>', '</style>', 
+        'style="', "style='", 'class="', "class='",
+        '<p>', '</p>', '<h1>', '</h1>', '<h2>', '</h2>',
+        '&lt;', '&gt;', '&nbsp;'
+    ]
+    
+    # Get all text content on the page
+    page_text = page.content()
+    
+    # Check body text specifically (not the HTML source)
+    body_text = page.locator("body").inner_text()
+    
+    for pattern in html_patterns:
+        # Check if the pattern appears as visible text
+        if pattern in body_text:
+            # Double-check by trying to find it as a text element
+            elements = page.locator(f'text="{pattern}"').all()
+            assert len(elements) == 0, f"HTML pattern '{pattern}' is visible as text in the UI!"
+    
+    # Specifically check node cards for HTML issues
+    node_cards = page.locator('[class*="node-card"]').all()
+    if len(node_cards) > 0:
+        for i, card in enumerate(node_cards):
+            card_text = card.inner_text()
+            for pattern in html_patterns:
+                assert pattern not in card_text, f"HTML pattern '{pattern}' found in node card #{i}: {card_text[:100]}..."
+    
+    # Check message boxes for HTML issues
+    message_boxes = page.locator('[class*="message-box"]').all()
+    if len(message_boxes) > 0:
+        for i, box in enumerate(message_boxes):
+            box_text = box.inner_text()
+            for pattern in html_patterns:
+                assert pattern not in box_text, f"HTML pattern '{pattern}' found in message box #{i}: {box_text[:100]}..."
+    
+    # Additional check: Look for any element containing raw HTML as text
+    suspicious_elements = page.locator('*:has-text("<div")').all()
+    assert len(suspicious_elements) == 0, f"Found {len(suspicious_elements)} elements with visible HTML tags"

@@ -37,6 +37,25 @@ st.markdown("""
     .stApp {
         background-color: #0A0A0A;
     }
+    /* Fix dimmed text - ensure headers are bright */
+    h1, h2, h3, h4, h5, h6 {
+        color: #FFFFFF !important;
+        opacity: 1 !important;
+    }
+    .element-container h1 {
+        color: #FFFFFF !important;
+    }
+    .element-container h2 {
+        color: #FFFFFF !important;
+    }
+    .element-container h3 {
+        color: #FFFFFF !important;
+    }
+    /* Ensure node titles are bright */
+    .node-card strong {
+        color: #FFFFFF !important;
+        opacity: 1 !important;
+    }
     .message-box {
         background-color: #161B22;
         border: 1px solid #00FFFF33;
@@ -50,6 +69,11 @@ st.markdown("""
         border-radius: 5px;
         padding: 10px;
         margin: 5px 0;
+        color: #FFFFFF;
+    }
+    .node-card strong {
+        color: #FFFFFF !important;
+        font-weight: bold;
     }
     .stat-box {
         background-color: #0D1117;
@@ -199,15 +223,7 @@ def create_signal_bar(rssi, snr=None):
     # Build the signal bar HTML
     snr_text = f" / {snr:.1f}dB SNR" if snr else ""
     
-    return f'''
-    <div style="margin: 8px 0;">
-        <div class="signal-bar-container">
-            <div class="signal-bar-fill" style="width: {percentage:.0f}%;"></div>
-            <span class="signal-value">{rssi}dBm{snr_text}</span>
-        </div>
-        <span class="signal-label {label_class}">{quality}</span>
-    </div>
-    '''
+    return f'<div style="margin: 8px 0;"><div class="signal-bar-container"><div class="signal-bar-fill" style="width: {percentage:.0f}%;"></div><span class="signal-value">{rssi}dBm{snr_text}</span></div><span class="signal-label {label_class}">{quality}</span></div>'
 
 
 def main():
@@ -463,17 +479,7 @@ def main():
                     pos_str = "📍" if has_position else ""
                     
                     # Node card with clean HTML
-                    card_html = f'''
-                    <div class="node-card">
-                        <strong>{name}</strong> ({short_name})<br>
-                        {hop_str}
-                        {signal_bar}
-                        <div style="color: #8B949E; font-size: 0.9em; margin-top: 5px;">
-                            {node_id} • {time_ago}<br>
-                            {distance_str} {battery_str} {pos_str}
-                        </div>
-                    </div>
-                    '''
+                    card_html = f'<div class="node-card"><strong>{name}</strong> ({short_name})<br>{hop_str}{signal_bar}<div style="color: #8B949E; font-size: 0.9em; margin-top: 5px;">{node_id} • {time_ago}<br>{distance_str} {battery_str} {pos_str}</div></div>'
                     st.markdown(card_html, unsafe_allow_html=True)
             else:
                 st.info("No nodes discovered yet")
