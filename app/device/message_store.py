@@ -141,14 +141,18 @@ class MessageStore:
         if sort_by_proximity:
             # Sort by: 1) Direct connections first, 2) Number of hops, 3) Distance
             def sort_key(node):
-                # First priority: Direct connection (hop count 0)
-                is_direct = node.get("is_direct", False) or node.get("hops", 999) == 0
+                # Handle None values properly
+                hops = node.get("hops")
+                if hops is None:
+                    hops = 999  # Treat None as unknown/far
                 
-                # Second priority: Number of hops
-                hops = node.get("hops", 999)
+                # First priority: Direct connection (hop count 0)
+                is_direct = node.get("is_direct", False) or hops == 0
                 
                 # Third priority: Distance (for nodes at same hop level)
-                distance = node.get("distance_km", 9999)
+                distance = node.get("distance_km")
+                if distance is None:
+                    distance = 9999
                 
                 # Return tuple for sorting (direct connections first, then by hops, then by distance)
                 return (not is_direct, hops, distance)
