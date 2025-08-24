@@ -31,133 +31,247 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for dark theme
-st.markdown("""
-<style>
-    .stApp {
-        background-color: #0A0A0A;
-    }
-    /* Fix dimmed text - ensure headers are bright */
-    h1, h2, h3, h4, h5, h6 {
-        color: #FFFFFF !important;
-        opacity: 1 !important;
-    }
-    .element-container h1 {
-        color: #FFFFFF !important;
-    }
-    .element-container h2 {
-        color: #FFFFFF !important;
-    }
-    .element-container h3 {
-        color: #FFFFFF !important;
-    }
-    /* Ensure node titles are bright */
-    .node-card strong {
-        color: #FFFFFF !important;
-        opacity: 1 !important;
-    }
-    .message-box {
-        background-color: #161B22;
-        border: 1px solid #00FFFF33;
-        border-radius: 5px;
-        padding: 10px;
-        margin: 5px 0;
-    }
-    .node-card {
-        background-color: #161B22;
-        border: 1px solid #39FF1433;
-        border-radius: 5px;
-        padding: 10px;
-        margin: 5px 0;
-        color: #FFFFFF;
-    }
-    .node-card strong {
-        color: #FFFFFF !important;
-        font-weight: bold;
-    }
-    .stat-box {
-        background-color: #0D1117;
-        border: 1px solid #FF00FF33;
-        border-radius: 5px;
-        padding: 15px;
-        text-align: center;
-    }
-    .online-indicator {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background-color: #39FF14;
-        margin-right: 5px;
-    }
-    .offline-indicator {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background-color: #FF0000;
-        margin-right: 5px;
-    }
-    .signal-bar-container {
-        display: inline-block;
-        width: 100%;
-        max-width: 200px;
-        height: 12px;
-        background: linear-gradient(to right, 
-            #FF000033 0%, #FF000033 25%,
-            #FFA50033 25%, #FFA50033 50%,
-            #FFD70033 50%, #FFD70033 75%,
-            #39FF1433 75%, #39FF1433 100%);
-        border: 1px solid #39FF1444;
-        border-radius: 6px;
-        position: relative;
-        overflow: hidden;
-        margin: 4px 0;
-    }
-    .signal-bar-fill {
-        height: 100%;
-        background: linear-gradient(to right, #FF0000, #FFA500, #FFD700, #39FF14);
-        border-radius: 5px;
-        transition: width 0.3s ease;
-        box-shadow: 0 0 8px currentColor;
-    }
-    .signal-value {
-        position: absolute;
-        right: 8px;
-        top: 50%;
-        transform: translateY(-50%);
-        font-size: 10px;
-        font-weight: bold;
-        color: #FFFFFF;
-        text-shadow: 0 0 4px #000000;
-        z-index: 10;
-    }
-    .signal-label {
-        display: inline-block;
-        margin-left: 8px;
-        font-size: 11px;
-        font-weight: bold;
-        padding: 2px 6px;
-        border-radius: 3px;
-    }
-    .signal-excellent {
-        color: #39FF14;
-        background: #39FF1422;
-    }
-    .signal-good {
-        color: #FFD700;
-        background: #FFD70022;
-    }
-    .signal-fair {
-        color: #FFA500;
-        background: #FFA50022;
-    }
-    .signal-poor {
-        color: #FF0000;
-        background: #FF000022;
-    }
-</style>
-""", unsafe_allow_html=True)
+def get_theme_css(theme: str = "dark") -> str:
+    """Get CSS for the selected theme."""
+    if theme == "light":
+        return """
+        <style>
+            .stApp {
+                background-color: #FFFFFF;
+            }
+            /* Light theme text colors */
+            h1, h2, h3, h4, h5, h6 {
+                color: #1F1F1F !important;
+                opacity: 1 !important;
+            }
+            .element-container h1, .element-container h2, .element-container h3 {
+                color: #1F1F1F !important;
+            }
+            .message-box {
+                background-color: #F8F9FA;
+                border: 1px solid #0080FF44;
+                border-radius: 5px;
+                padding: 10px;
+                margin: 5px 0;
+                color: #1F1F1F;
+            }
+            .node-card {
+                background-color: #F8F9FA;
+                border: 1px solid #00AA0044;
+                border-radius: 5px;
+                padding: 10px;
+                margin: 5px 0;
+                color: #1F1F1F;
+            }
+            .node-card strong {
+                color: #1F1F1F !important;
+                font-weight: bold;
+            }
+            .stat-box {
+                background-color: #F0F2F6;
+                border: 1px solid #9333EA44;
+                border-radius: 5px;
+                padding: 15px;
+                text-align: center;
+            }
+            .online-indicator {
+                display: inline-block;
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                background-color: #00AA00;
+                margin-right: 5px;
+            }
+            .offline-indicator {
+                display: inline-block;
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                background-color: #FF0000;
+                margin-right: 5px;
+            }
+            .signal-bar-container {
+                display: inline-block;
+                width: 100%;
+                max-width: 200px;
+                height: 12px;
+                background: linear-gradient(to right, 
+                    #FF000022 0%, #FF000022 25%,
+                    #FFA50022 25%, #FFA50022 50%,
+                    #FFD70022 50%, #FFD70022 75%,
+                    #00AA0022 75%, #00AA0022 100%);
+                border: 1px solid #00AA0066;
+                border-radius: 6px;
+                position: relative;
+                overflow: hidden;
+                margin: 4px 0;
+            }
+            .signal-bar-fill {
+                height: 100%;
+                background: linear-gradient(to right, #FF0000, #FFA500, #FFD700, #00AA00);
+                border-radius: 5px;
+                transition: width 0.3s ease;
+                box-shadow: 0 0 8px currentColor;
+            }
+            .signal-value {
+                position: absolute;
+                right: 8px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 10px;
+                font-weight: bold;
+                color: #1F1F1F;
+                text-shadow: 0 0 4px #FFFFFF;
+                z-index: 10;
+            }
+            .signal-label {
+                display: inline-block;
+                margin-left: 8px;
+                font-size: 11px;
+                font-weight: bold;
+                padding: 2px 6px;
+                border-radius: 3px;
+            }
+            .signal-excellent {
+                color: #00AA00;
+                background: #00AA0022;
+            }
+            .signal-good {
+                color: #FFB000;
+                background: #FFB00022;
+            }
+            .signal-fair {
+                color: #FF8000;
+                background: #FF800022;
+            }
+            .signal-poor {
+                color: #FF0000;
+                background: #FF000022;
+            }
+            /* Sidebar text fix for light theme */
+            .css-1d391kg, .css-1d391kg p {
+                color: #1F1F1F !important;
+            }
+        </style>
+        """
+    else:  # dark theme (default)
+        return """
+        <style>
+            .stApp {
+                background-color: #0A0A0A;
+            }
+            /* Dark theme text colors */
+            h1, h2, h3, h4, h5, h6 {
+                color: #FFFFFF !important;
+                opacity: 1 !important;
+            }
+            .element-container h1, .element-container h2, .element-container h3 {
+                color: #FFFFFF !important;
+            }
+            .message-box {
+                background-color: #161B22;
+                border: 1px solid #00FFFF33;
+                border-radius: 5px;
+                padding: 10px;
+                margin: 5px 0;
+            }
+            .node-card {
+                background-color: #161B22;
+                border: 1px solid #39FF1433;
+                border-radius: 5px;
+                padding: 10px;
+                margin: 5px 0;
+                color: #FFFFFF;
+            }
+            .node-card strong {
+                color: #FFFFFF !important;
+                font-weight: bold;
+            }
+            .stat-box {
+                background-color: #0D1117;
+                border: 1px solid #FF00FF33;
+                border-radius: 5px;
+                padding: 15px;
+                text-align: center;
+            }
+            .online-indicator {
+                display: inline-block;
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                background-color: #39FF14;
+                margin-right: 5px;
+            }
+            .offline-indicator {
+                display: inline-block;
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                background-color: #FF0000;
+                margin-right: 5px;
+            }
+            .signal-bar-container {
+                display: inline-block;
+                width: 100%;
+                max-width: 200px;
+                height: 12px;
+                background: linear-gradient(to right, 
+                    #FF000033 0%, #FF000033 25%,
+                    #FFA50033 25%, #FFA50033 50%,
+                    #FFD70033 50%, #FFD70033 75%,
+                    #39FF1433 75%, #39FF1433 100%);
+                border: 1px solid #39FF1444;
+                border-radius: 6px;
+                position: relative;
+                overflow: hidden;
+                margin: 4px 0;
+            }
+            .signal-bar-fill {
+                height: 100%;
+                background: linear-gradient(to right, #FF0000, #FFA500, #FFD700, #39FF14);
+                border-radius: 5px;
+                transition: width 0.3s ease;
+                box-shadow: 0 0 8px currentColor;
+            }
+            .signal-value {
+                position: absolute;
+                right: 8px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 10px;
+                font-weight: bold;
+                color: #FFFFFF;
+                text-shadow: 0 0 4px #000000;
+                z-index: 10;
+            }
+            .signal-label {
+                display: inline-block;
+                margin-left: 8px;
+                font-size: 11px;
+                font-weight: bold;
+                padding: 2px 6px;
+                border-radius: 3px;
+            }
+            .signal-excellent {
+                color: #39FF14;
+                background: #39FF1422;
+            }
+            .signal-good {
+                color: #FFD700;
+                background: #FFD70022;
+            }
+            .signal-fair {
+                color: #FFA500;
+                background: #FFA50022;
+            }
+            .signal-poor {
+                color: #FF0000;
+                background: #FF000022;
+            }
+        </style>
+        """
+
+
 
 
 async def ensure_service_running():
@@ -328,19 +442,22 @@ def create_network_graph():
     # Create figure
     fig = go.Figure(data=edge_traces + [node_trace])
     
-    # Update layout
+    # Update layout based on theme
+    bg_color = '#FFFFFF' if st.session_state.theme == 'light' else '#0A0A0A'
+    text_color = '#1F1F1F' if st.session_state.theme == 'light' else '#FFFFFF'
+    
     fig.update_layout(
         title={
             'text': '🌐 Mesh Network Topology',
             'x': 0.5,
             'xanchor': 'center',
-            'font': {'size': 20, 'color': '#FFFFFF'}
+            'font': {'size': 20, 'color': text_color}
         },
         showlegend=True,
         hovermode='closest',
         margin=dict(b=20, l=5, r=5, t=40),
-        plot_bgcolor='#0A0A0A',
-        paper_bgcolor='#0A0A0A',
+        plot_bgcolor=bg_color,
+        paper_bgcolor=bg_color,
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         height=600,
@@ -525,17 +642,21 @@ def show_node_details(node_id: str):
                     row=2, col=1
                 )
             
-            # Update layout
+            # Update layout based on theme
+            bg_color = '#FFFFFF' if st.session_state.theme == 'light' else '#0A0A0A'
+            text_color = '#1F1F1F' if st.session_state.theme == 'light' else '#FFFFFF'
+            grid_color = '#E0E0E0' if st.session_state.theme == 'light' else '#333333'
+            
             fig.update_layout(
                 height=500,
                 showlegend=False,
-                plot_bgcolor='#0A0A0A',
-                paper_bgcolor='#0A0A0A',
-                font=dict(color='#FFFFFF')
+                plot_bgcolor=bg_color,
+                paper_bgcolor=bg_color,
+                font=dict(color=text_color)
             )
             
-            fig.update_xaxes(gridcolor='#333333')
-            fig.update_yaxes(gridcolor='#333333')
+            fig.update_xaxes(gridcolor=grid_color)
+            fig.update_yaxes(gridcolor=grid_color)
             
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -608,6 +729,12 @@ def main():
     if "show_node_details" not in st.session_state:
         st.session_state.show_node_details = False
     
+    if "theme" not in st.session_state:
+        st.session_state.theme = "dark"  # Default to dark theme
+    
+    # Apply theme CSS
+    st.markdown(get_theme_css(st.session_state.theme), unsafe_allow_html=True)
+    
     # Start service if not running
     if not st.session_state.service_started:
         with st.spinner("Connecting to Meshtastic device..."):
@@ -643,6 +770,25 @@ def main():
     # Sidebar for controls
     with st.sidebar:
         st.header("⚙️ Controls")
+        
+        # Theme selector at the top
+        st.subheader("🎨 Theme")
+        theme_options = ["🌙 Dark", "☀️ Light"]
+        current_theme_index = 0 if st.session_state.theme == "dark" else 1
+        selected_theme = st.radio(
+            "Choose theme",
+            theme_options,
+            index=current_theme_index,
+            key="theme_selector"
+        )
+        
+        # Update theme if changed
+        new_theme = "dark" if selected_theme == "🌙 Dark" else "light"
+        if new_theme != st.session_state.theme:
+            st.session_state.theme = new_theme
+            st.rerun()
+        
+        st.divider()
         
         # View selector
         view = st.radio(
