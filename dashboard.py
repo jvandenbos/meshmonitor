@@ -74,6 +74,64 @@ st.markdown("""
         background-color: #FF0000;
         margin-right: 5px;
     }
+    .signal-bar-container {
+        display: inline-block;
+        width: 100%;
+        max-width: 200px;
+        height: 12px;
+        background: linear-gradient(to right, 
+            #FF000033 0%, #FF000033 25%,
+            #FFA50033 25%, #FFA50033 50%,
+            #FFD70033 50%, #FFD70033 75%,
+            #39FF1433 75%, #39FF1433 100%);
+        border: 1px solid #39FF1444;
+        border-radius: 6px;
+        position: relative;
+        overflow: hidden;
+        margin: 4px 0;
+    }
+    .signal-bar-fill {
+        height: 100%;
+        background: linear-gradient(to right, #FF0000, #FFA500, #FFD700, #39FF14);
+        border-radius: 5px;
+        transition: width 0.3s ease;
+        box-shadow: 0 0 8px currentColor;
+    }
+    .signal-value {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 10px;
+        font-weight: bold;
+        color: #FFFFFF;
+        text-shadow: 0 0 4px #000000;
+        z-index: 10;
+    }
+    .signal-label {
+        display: inline-block;
+        margin-left: 8px;
+        font-size: 11px;
+        font-weight: bold;
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
+    .signal-excellent {
+        color: #39FF14;
+        background: #39FF1422;
+    }
+    .signal-good {
+        color: #FFD700;
+        background: #FFD70022;
+    }
+    .signal-fair {
+        color: #FFA500;
+        background: #FFA50022;
+    }
+    .signal-poor {
+        color: #FF0000;
+        background: #FF000022;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -113,6 +171,43 @@ def format_time_ago(timestamp_str):
             return f"{int(delta.total_seconds() / 86400)}d ago"
     except:
         return "unknown"
+
+
+def create_signal_bar(rssi, snr=None):
+    """Create a horizontal signal strength bar with gradient colors."""
+    if not rssi:
+        return ""
+    
+    # Calculate percentage (RSSI typically ranges from -120 to -30 dBm)
+    # Map to 0-100% where -120 = 0% and -30 = 100%
+    percentage = max(0, min(100, ((rssi + 120) / 90) * 100))
+    
+    # Determine signal quality
+    if rssi > -60:
+        quality = "Excellent"
+        label_class = "signal-excellent"
+    elif rssi > -75:
+        quality = "Good"
+        label_class = "signal-good"
+    elif rssi > -85:
+        quality = "Fair"
+        label_class = "signal-fair"
+    else:
+        quality = "Poor"
+        label_class = "signal-poor"
+    
+    # Build the signal bar HTML
+    snr_text = f" / {snr:.1f}dB SNR" if snr else ""
+    
+    return f'''
+    <div style="margin: 8px 0;">
+        <div class="signal-bar-container">
+            <div class="signal-bar-fill" style="width: {percentage:.0f}%;"></div>
+            <span class="signal-value">{rssi}dBm{snr_text}</span>
+        </div>
+        <span class="signal-label {label_class}">{quality}</span>
+    </div>
+    '''
 
 
 def main():
@@ -337,25 +432,15 @@ def main():
                     # Simple, clean hop display without nested HTML
                     if is_direct:
                         hop_str = '<span style="background: #00FFFF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">📡 DIRECT</span>'
-                        # Add signal strength as separate element if available
-                        if rssi:
-                            if rssi > -60:
-                                signal_color = "#39FF14"
-                                signal_label = "Excellent"
-                            elif rssi > -75:
-                                signal_color = "#FFD700"
-                                signal_label = "Good"
-                            elif rssi > -85:
-                                signal_color = "#FFA500"
-                                signal_label = "Fair"
-                            else:
-                                signal_color = "#FF0000"
-                                signal_label = "Weak"
-                            hop_str += f'<br><span style="color: {signal_color}; font-size: 0.9em;">Signal: {rssi}dBm ({signal_label})</span>'
+                        # Add signal strength bar if available
+                        signal_bar = create_signal_bar(rssi, snr) if rssi else ""
                     elif hops >= 0:
                         hop_str = f'<span style="background: #FF00FF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">↗️ {hops} HOP{"S" if hops != 1 else ""}</span>'
+                        # For indirect nodes, show signal bar if we have RSSI
+                        signal_bar = create_signal_bar(rssi, snr) if rssi else ""
                     else:
                         hop_str = '<span style="background: #80808022; padding: 2px 6px; border-radius: 3px;">❓ UNKNOWN</span>'
+                        signal_bar = ""
                     
                     # Distance
                     distance = node.get("distance_km")
@@ -381,7 +466,8 @@ def main():
                     card_html = f'''
                     <div class="node-card">
                         <strong>{name}</strong> ({short_name})<br>
-                        {hop_str}<br>
+                        {hop_str}
+                        {signal_bar}
                         <div style="color: #8B949E; font-size: 0.9em; margin-top: 5px;">
                             {node_id} • {time_ago}<br>
                             {distance_str} {battery_str} {pos_str}
