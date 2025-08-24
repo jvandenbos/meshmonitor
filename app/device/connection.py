@@ -10,6 +10,7 @@ import meshtastic.tcp_interface
 from pubsub import pub
 
 from app.config import settings
+from app.utils.error_handler import error_handler, DeviceConnectionError, MessageProcessingError
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +62,9 @@ class MeshtasticDevice:
                 return False
                 
         except Exception as e:
-            logger.error(f"Failed to connect to Meshtastic device: {e}")
+            error_handler.handle_error(e, "device_connection", {"port": port}, critical=True)
             self.connected = False
-            return False
+            raise DeviceConnectionError(f"Failed to connect to Meshtastic device: {e}")
     
     def _subscribe_to_messages(self):
         """Subscribe to Meshtastic message topics."""
@@ -106,7 +107,7 @@ class MeshtasticDevice:
             self._emit_message("text", message_data)
             
         except Exception as e:
-            logger.error(f"Error handling text message: {e}")
+            error_handler.handle_error(e, "text_message_handler", {"packet": packet})
     
     def _on_position(self, packet, interface):
         """Handle position updates."""

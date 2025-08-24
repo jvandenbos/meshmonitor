@@ -1,5 +1,27 @@
 # Release Notes
 
+## [0.3.0] - 2025-01-24
+
+### Added
+- Comprehensive Playwright test suite for dashboard UI
+- Centralized error handling system with ErrorHandler class
+- Custom exception hierarchy (DeviceConnectionError, MessageProcessingError, DataValidationError)
+- Error statistics tracking and monitoring
+- Test configuration with pytest.ini
+- 10 automated UI tests covering all dashboard features
+
+### Improved
+- Enhanced error handling in device connection module
+- Better error logging with context and data tracking
+- Recurring error detection and reporting
+
+### Testing
+- Full test coverage for dashboard views (Split, Messages, Nodes, Map)
+- Sidebar control validation tests
+- Message sending validation tests
+- Responsive layout testing
+- Auto-refresh functionality tests
+
 ## [0.2.0] - 2025-01-24
 
 ### Added
