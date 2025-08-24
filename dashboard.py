@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Streamlit dashboard for Meshtastic monitoring."""
+"""Streamlit dashboard for Meshtastic monitoring - FIXED VERSION."""
 
 import streamlit as st
 import pandas as pd
@@ -166,8 +166,6 @@ def main():
         
         # Auto-refresh
         auto_refresh = st.checkbox("Auto Refresh (5s)", value=True)
-        if auto_refresh:
-            st.empty()  # Placeholder for auto-refresh
         
         # Message filters
         st.header("🔍 Filters")
@@ -203,7 +201,7 @@ def main():
         paths, only hop counts and direct neighbor info.
         """)
     
-    # Main content area
+    # Main content area - FIXED: Properly structured if/elif blocks
     if view == "Split View":
         col1, col2 = st.columns([1, 1])
         
@@ -215,49 +213,52 @@ def main():
             msg_type = None if message_type_filter == "All" else message_type_filter
             messages = message_store.get_messages(limit=50, message_type=msg_type)
             
-            # Display messages
-            for msg in messages:
-                msg_type = msg.get("type", "unknown")
-                
-                # Color code by type
-                if msg_type == "text":
-                    emoji = "💬"
-                    color = "#00FFFF"
-                elif msg_type == "position":
-                    emoji = "📍"
-                    color = "#FF00FF"
-                elif msg_type == "telemetry":
-                    emoji = "📊"
-                    color = "#39FF14"
-                elif msg_type == "nodeinfo":
-                    emoji = "ℹ️"
-                    color = "#FFD700"
-                else:
-                    emoji = "📦"
-                    color = "#808080"
-                
-                # Format message
-                from_node = msg.get("from", "unknown")
-                timestamp = format_timestamp(msg.get("timestamp", ""))
-                
-                # Create message display
-                if msg_type == "text":
-                    text = msg.get("text", "")
-                    st.markdown(f"""
-                    <div class="message-box">
-                        <strong style="color: {color}">{emoji} {from_node}</strong> 
-                        <span style="color: #8B949E; font-size: 0.9em">{timestamp}</span><br>
-                        {text}
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class="message-box">
-                        <strong style="color: {color}">{emoji} {msg_type.upper()}</strong> 
-                        from {from_node}
-                        <span style="color: #8B949E; font-size: 0.9em">{timestamp}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+            if messages:
+                # Display messages
+                for msg in messages:
+                    msg_type = msg.get("type", "unknown")
+                    
+                    # Color code by type
+                    if msg_type == "text":
+                        emoji = "💬"
+                        color = "#00FFFF"
+                    elif msg_type == "position":
+                        emoji = "📍"
+                        color = "#FF00FF"
+                    elif msg_type == "telemetry":
+                        emoji = "📊"
+                        color = "#39FF14"
+                    elif msg_type == "nodeinfo":
+                        emoji = "ℹ️"
+                        color = "#FFD700"
+                    else:
+                        emoji = "📦"
+                        color = "#808080"
+                    
+                    # Format message
+                    from_node = msg.get("from", "unknown")
+                    timestamp = format_timestamp(msg.get("timestamp", ""))
+                    
+                    # Create message display
+                    if msg_type == "text":
+                        text = msg.get("text", "")
+                        st.markdown(f"""
+                        <div class="message-box">
+                            <strong style="color: {color}">{emoji} {from_node}</strong> 
+                            <span style="color: #8B949E; font-size: 0.9em">{timestamp}</span><br>
+                            {text}
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div class="message-box">
+                            <strong style="color: {color}">{emoji} {msg_type.upper()}</strong> 
+                            from {from_node}
+                            <span style="color: #8B949E; font-size: 0.9em">{timestamp}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+            else:
+                st.info("No messages yet")
         
         # Nodes column
         with col2:
@@ -269,115 +270,118 @@ def main():
             # Get nodes
             nodes = message_store.get_nodes(sort_by_proximity=sort_proximity)
             
-            # Display nodes
-            for node in nodes:
-                node_id = node.get("id", "unknown")
-                name = node.get("long_name", node_id)
-                short_name = node.get("short_name", "")
-                
-                # Get status info
-                last_updated = node.get("last_updated", "")
-                time_ago = format_time_ago(last_updated) if last_updated else "never"
-                
-                # Get telemetry
-                telemetry = node.get("telemetry", {})
-                battery = telemetry.get("battery_level")
-                
-                # Get position
-                position = node.get("position", {})
-                has_position = bool(position.get("latitude"))
-                
-                # Get hop and signal info
-                hops = node.get("hops", "?")
-                is_direct = node.get("is_direct", False) or hops == 0
-                rssi = node.get("rssi")
-                snr = node.get("snr")
-                
-                # Connection type indicator with prominent display
-                if is_direct:
-                    # Create signal strength bar for direct connections
-                    if rssi:
-                        # RSSI typically ranges from -120 (weak) to -40 (strong)
-                        if rssi > -60:
-                            signal_bar = """
-                            <div style="display: inline-block; vertical-align: middle;">
-                                <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
-                                <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
-                                    <div style="position: absolute; right: 0; top: 0; width: 90%; height: 100%; background: #39FF14; border-radius: 3px;"></div>
+            if nodes:
+                # Display nodes
+                for node in nodes:
+                    node_id = node.get("id", "unknown")
+                    name = node.get("long_name", node_id)
+                    short_name = node.get("short_name", "")
+                    
+                    # Get status info
+                    last_updated = node.get("last_updated", "")
+                    time_ago = format_time_ago(last_updated) if last_updated else "never"
+                    
+                    # Get telemetry
+                    telemetry = node.get("telemetry", {})
+                    battery = telemetry.get("battery_level")
+                    
+                    # Get position
+                    position = node.get("position", {})
+                    has_position = bool(position.get("latitude"))
+                    
+                    # Get hop and signal info
+                    hops = node.get("hops", "?")
+                    is_direct = node.get("is_direct", False) or hops == 0
+                    rssi = node.get("rssi")
+                    snr = node.get("snr")
+                    
+                    # Connection type indicator with prominent display
+                    if is_direct:
+                        # Create signal strength bar for direct connections
+                        if rssi:
+                            # RSSI typically ranges from -120 (weak) to -40 (strong)
+                            if rssi > -60:
+                                signal_bar = f"""
+                                <div style="display: inline-block; vertical-align: middle;">
+                                    <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
+                                    <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
+                                        <div style="position: absolute; right: 0; top: 0; width: 90%; height: 100%; background: #39FF14; border-radius: 3px;"></div>
+                                    </div>
+                                    <span style="color: #39FF14; font-weight: bold;">{rssi}dBm</span>
                                 </div>
-                                <span style="color: #39FF14; font-weight: bold;">{rssi}dBm</span>
-                            </div>
-                            """
-                        elif rssi > -75:
-                            signal_bar = f"""
-                            <div style="display: inline-block; vertical-align: middle;">
-                                <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
-                                <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
-                                    <div style="position: absolute; left: 0; top: 0; width: 70%; height: 100%; background: linear-gradient(to right, #FF0000, #FFD700); border-radius: 3px;"></div>
+                                """
+                            elif rssi > -75:
+                                signal_bar = f"""
+                                <div style="display: inline-block; vertical-align: middle;">
+                                    <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
+                                    <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
+                                        <div style="position: absolute; left: 0; top: 0; width: 70%; height: 100%; background: linear-gradient(to right, #FF0000, #FFD700); border-radius: 3px;"></div>
+                                    </div>
+                                    <span style="color: #FFD700; font-weight: bold;">{rssi}dBm</span>
                                 </div>
-                                <span style="color: #FFD700; font-weight: bold;">{rssi}dBm</span>
-                            </div>
-                            """
-                        elif rssi > -85:
-                            signal_bar = f"""
-                            <div style="display: inline-block; vertical-align: middle;">
-                                <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
-                                <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
-                                    <div style="position: absolute; left: 0; top: 0; width: 50%; height: 100%; background: linear-gradient(to right, #FF0000, #FFA500); border-radius: 3px;"></div>
+                                """
+                            elif rssi > -85:
+                                signal_bar = f"""
+                                <div style="display: inline-block; vertical-align: middle;">
+                                    <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
+                                    <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
+                                        <div style="position: absolute; left: 0; top: 0; width: 50%; height: 100%; background: linear-gradient(to right, #FF0000, #FFA500); border-radius: 3px;"></div>
+                                    </div>
+                                    <span style="color: #FFA500; font-weight: bold;">{rssi}dBm</span>
                                 </div>
-                                <span style="color: #FFA500; font-weight: bold;">{rssi}dBm</span>
-                            </div>
-                            """
+                                """
+                            else:
+                                signal_bar = f"""
+                                <div style="display: inline-block; vertical-align: middle;">
+                                    <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
+                                    <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
+                                        <div style="position: absolute; left: 0; top: 0; width: 25%; height: 100%; background: #FF0000; border-radius: 3px;"></div>
+                                    </div>
+                                    <span style="color: #FF0000; font-weight: bold;">{rssi}dBm</span>
+                                </div>
+                                """
+                            hop_str = f'<span style="background: #00FFFF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">📡 DIRECT</span><br>{signal_bar}'
                         else:
-                            signal_bar = f"""
-                            <div style="display: inline-block; vertical-align: middle;">
-                                <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
-                                <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
-                                    <div style="position: absolute; left: 0; top: 0; width: 25%; height: 100%; background: #FF0000; border-radius: 3px;"></div>
-                                </div>
-                                <span style="color: #FF0000; font-weight: bold;">{rssi}dBm</span>
-                            </div>
-                            """
-                        hop_str = f'<span style="background: #00FFFF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">📡 DIRECT</span><br>{signal_bar}'
+                            hop_str = '<span style="background: #00FFFF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">📡 DIRECT</span>'
+                    elif hops != "?":
+                        hop_str = f'<span style="background: #FF00FF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">↗️ {hops} HOP{"S" if hops != 1 else ""}</span>'
                     else:
-                        hop_str = '<span style="background: #00FFFF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">📡 DIRECT</span>'
-                elif hops != "?":
-                    hop_str = f'<span style="background: #FF00FF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">↗️ {hops} HOP{"S" if hops != 1 else ""}</span>'
-                else:
-                    hop_str = '<span style="background: #80808022; padding: 2px 6px; border-radius: 3px;">❓ UNKNOWN</span>'
-                
-                # Distance
-                distance = node.get("distance_km")
-                distance_str = f"📏 {distance:.1f} km" if distance else ""
-                
-                # Battery indicator
-                battery_str = ""
-                if battery:
-                    if battery > 75:
-                        battery_emoji = "🔋"
-                    elif battery > 50:
-                        battery_emoji = "🔋"
-                    elif battery > 25:
-                        battery_emoji = "🪫"
-                    else:
-                        battery_emoji = "🪫"
-                    battery_str = f"{battery_emoji} {battery}%"
-                
-                # Position indicator
-                pos_str = "📍" if has_position else ""
-                
-                # Node card with clean HTML
-                card_html = f'''
-                <div class="node-card">
-                    <strong>{name}</strong> ({short_name})<br>
-                    {hop_str}<br>
-                    <div style="color: #8B949E; font-size: 0.9em; margin-top: 5px;">
-                        {node_id} • {time_ago}<br>
-                        {distance_str} {battery_str} {pos_str}
+                        hop_str = '<span style="background: #80808022; padding: 2px 6px; border-radius: 3px;">❓ UNKNOWN</span>'
+                    
+                    # Distance
+                    distance = node.get("distance_km")
+                    distance_str = f"📏 {distance:.1f} km" if distance else ""
+                    
+                    # Battery indicator
+                    battery_str = ""
+                    if battery:
+                        if battery > 75:
+                            battery_emoji = "🔋"
+                        elif battery > 50:
+                            battery_emoji = "🔋"
+                        elif battery > 25:
+                            battery_emoji = "🪫"
+                        else:
+                            battery_emoji = "🪫"
+                        battery_str = f"{battery_emoji} {battery}%"
+                    
+                    # Position indicator
+                    pos_str = "📍" if has_position else ""
+                    
+                    # Node card with clean HTML
+                    card_html = f'''
+                    <div class="node-card">
+                        <strong>{name}</strong> ({short_name})<br>
+                        {hop_str}<br>
+                        <div style="color: #8B949E; font-size: 0.9em; margin-top: 5px;">
+                            {node_id} • {time_ago}<br>
+                            {distance_str} {battery_str} {pos_str}
+                        </div>
                     </div>
-                </div>
-                '''
-                st.markdown(card_html, unsafe_allow_html=True)
+                    '''
+                    st.markdown(card_html, unsafe_allow_html=True)
+            else:
+                st.info("No nodes discovered yet")
     
     elif view == "Messages Only":
         st.header("📨 Message Traffic")
