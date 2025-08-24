@@ -289,12 +289,34 @@ def main():
         
         # Send message
         st.header("📤 Send Message")
+        
+        # Add test mode toggle
+        test_mode = st.checkbox("Test Mode (Channel 7)", value=True,
+                               help="When enabled, messages are sent on Channel 7 for testing")
+        
         message_text = st.text_input("Message")
-        channel = st.number_input("Channel", min_value=0, max_value=7, value=0)
+        
+        if test_mode:
+            channel = 7
+            st.info("🧪 Test Mode: Messages will be sent on Channel 7")
+        else:
+            channel = st.number_input("Channel", min_value=0, max_value=7, value=0,
+                                    help="Select channel 0-7. Channel 0 is the default public channel.")
+        
+        # Show current channel
+        st.caption(f"Will send on Channel {channel}")
+        
         if st.button("Send", type="primary"):
             if message_text:
-                asyncio.run(device.send_text(message_text, channel))
-                st.success("Message sent!")
+                # Add test prefix if in test mode
+                if test_mode:
+                    message_text = f"[TEST] {message_text}"
+                
+                success = asyncio.run(device.send_text(message_text, channel))
+                if success:
+                    st.success(f"✅ Message sent on Channel {channel}!")
+                else:
+                    st.error("❌ Failed to send message - check device connection")
         
         # Stats
         st.header("📊 Statistics")
@@ -401,7 +423,7 @@ def main():
             with col_filter1:
                 sort_proximity = st.checkbox("Sort by proximity", value=True)
             with col_filter2:
-                show_only_with_packets = st.checkbox("Only show nodes with packets", value=False, 
+                show_only_with_packets = st.checkbox("Only show nodes with packets", value=True, 
                                                     help="Show only nodes we've received packets from")
             
             # Get nodes
