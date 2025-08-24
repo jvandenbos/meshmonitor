@@ -45,14 +45,25 @@ class MeshtasticService:
             
             # Set our position if available
             if device.interface and hasattr(device.interface, 'localNode'):
-                local_node = device.interface.localNode
-                if local_node and "position" in local_node:
-                    pos = local_node["position"]
-                    if "latitudeI" in pos and "longitudeI" in pos:
-                        lat = pos["latitudeI"] / 1e7
-                        lon = pos["longitudeI"] / 1e7
-                        message_store.set_my_position(lat, lon)
-                        logger.info(f"Set local position: {lat}, {lon}")
+                try:
+                    local_node = device.interface.localNode
+                    # Check if localNode is a dict-like object
+                    if local_node and hasattr(local_node, 'position'):
+                        pos = local_node.position
+                        if hasattr(pos, 'latitudeI') and hasattr(pos, 'longitudeI'):
+                            lat = pos.latitudeI / 1e7
+                            lon = pos.longitudeI / 1e7
+                            message_store.set_my_position(lat, lon)
+                            logger.info(f"Set local position: {lat}, {lon}")
+                    elif local_node and isinstance(local_node, dict) and "position" in local_node:
+                        pos = local_node["position"]
+                        if "latitudeI" in pos and "longitudeI" in pos:
+                            lat = pos["latitudeI"] / 1e7
+                            lon = pos["longitudeI"] / 1e7
+                            message_store.set_my_position(lat, lon)
+                            logger.info(f"Set local position: {lat}, {lon}")
+                except Exception as e:
+                    logger.warning(f"Could not get local position: {e}")
             
             # Start monitoring task
             self.task = asyncio.create_task(self._monitor_loop())
