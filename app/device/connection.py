@@ -29,6 +29,15 @@ class MeshtasticDevice:
     async def connect(self, port: Optional[str] = None) -> bool:
         """Connect to Meshtastic device via serial port."""
         try:
+            # Close any existing connection first
+            if self.interface:
+                try:
+                    self.interface.close()
+                    await asyncio.sleep(0.5)  # Give time for port to be released
+                except:
+                    pass
+                self.interface = None
+            
             port = port or settings.serial_port
             
             logger.info(f"Attempting to connect to Meshtastic device on {port or 'auto-detected port'}...")
@@ -62,9 +71,15 @@ class MeshtasticDevice:
                 return False
                 
         except Exception as e:
-            error_handler.handle_error(e, "device_connection", {"port": port}, critical=True)
+            error_handler.handle_error(e, "device_connection", {"port": port})
             self.connected = False
-            raise DeviceConnectionError(f"Failed to connect to Meshtastic device: {e}")
+            
+            # Check if it's a port lock error
+            if "Resource temporarily unavailable" in str(e) or "exclusively lock port" in str(e):
+                logger.warning("Port is locked by another process. Connection will work in read-only mode.")
+                return False
+            else:
+                raise DeviceConnectionError(f"Failed to connect to Meshtastic device: {e}")
     
     def _subscribe_to_messages(self):
         """Subscribe to Meshtastic message topics."""

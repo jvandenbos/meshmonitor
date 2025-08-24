@@ -80,7 +80,11 @@ st.markdown("""
 async def ensure_service_running():
     """Ensure the Meshtastic service is running."""
     if not meshtastic_service.running:
-        await meshtastic_service.start()
+        try:
+            await meshtastic_service.start()
+        except Exception as e:
+            logger.warning(f"Could not connect to device: {e}")
+            # Continue anyway - dashboard can work in demo mode
 
 
 def format_timestamp(timestamp_str):
@@ -120,9 +124,13 @@ def main():
     # Start service if not running
     if not st.session_state.service_started:
         with st.spinner("Connecting to Meshtastic device..."):
-            asyncio.run(ensure_service_running())
-            st.session_state.service_started = True
-            time.sleep(2)  # Give it time to collect initial data
+            try:
+                asyncio.run(ensure_service_running())
+                st.session_state.service_started = True
+                time.sleep(2)  # Give it time to collect initial data
+            except Exception as e:
+                st.warning(f"Could not connect to device: {e}. Running in demo mode.")
+                st.session_state.service_started = True
     
     # Header
     st.title("📡 Meshtastic Network Monitor")

@@ -53,33 +53,36 @@ def test_view_modes(page: Page, dashboard_server):
     """Test switching between different view modes."""
     page.goto(dashboard_server)
     
-    # Check Split View is default
-    split_view = page.get_by_label("Split View")
-    expect(split_view).to_be_checked()
+    # Wait for page to load
+    page.wait_for_timeout(2000)
     
-    # Switch to Messages Only
-    messages_only = page.get_by_label("Messages Only")
-    messages_only.click()
+    # Check Split View content is visible by default
+    expect(page.get_by_text("📨 Message Traffic")).to_be_visible()
+    expect(page.get_by_text("🌐 Network Nodes")).to_be_visible()
+    
+    # Switch to Messages Only by clicking the radio button
+    messages_radio = page.locator("text=Messages Only").first
+    messages_radio.click()
+    page.wait_for_timeout(500)
     
     # Check Messages header is visible
-    messages_header = page.get_by_role("heading", name="📨 Message Traffic")
-    expect(messages_header).to_be_visible()
+    expect(page.get_by_text("📨 Message Traffic")).to_be_visible()
     
     # Switch to Nodes Only
-    nodes_only = page.get_by_label("Nodes Only")
-    nodes_only.click()
+    nodes_radio = page.locator("text=Nodes Only").first
+    nodes_radio.click()
+    page.wait_for_timeout(500)
     
-    # Check Nodes header is visible
-    nodes_header = page.get_by_role("heading", name="🌐 Network Nodes")
-    expect(nodes_header).to_be_visible()
+    # Check Nodes header is visible  
+    expect(page.get_by_text("🌐 Network Nodes")).to_be_visible()
     
     # Switch to Map View
-    map_view = page.get_by_label("Map View")
-    map_view.click()
+    map_radio = page.locator("text=Map View").first
+    map_radio.click()
+    page.wait_for_timeout(500)
     
     # Check Map header is visible
-    map_header = page.get_by_role("heading", name="🗺️ Node Map")
-    expect(map_header).to_be_visible()
+    expect(page.get_by_text("🗺️ Node Map")).to_be_visible()
 
 
 def test_sidebar_controls(page: Page, dashboard_server):

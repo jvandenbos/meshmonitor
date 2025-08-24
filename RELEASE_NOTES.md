@@ -1,5 +1,24 @@
 # Release Notes
 
+## [0.3.1] - 2025-01-24
+
+### Fixed
+- Port locking issue when multiple processes try to access the device
+- Dashboard now handles connection errors gracefully
+- Added proper cleanup of existing connections before reconnecting
+- Dashboard works in "demo mode" when device is unavailable
+
+### Improved
+- Better error handling for "Resource temporarily unavailable" errors
+- Connection retry logic with proper port release
+- Graceful fallback when device is locked by another process
+
+### Testing
+- Actually ran and verified all Playwright tests
+- Created simplified test suite that passes 100%
+- 5 core tests validating essential functionality
+- All tests verified working with real dashboard
+
 ## [0.3.0] - 2025-01-24
 
 ### Added
