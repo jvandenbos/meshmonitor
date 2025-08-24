@@ -1,5 +1,37 @@
 # Release Notes
 
+## [0.6.0] - 2025-08-24
+
+### Added
+- **Modern Signal Strength Visualization**
+  - Horizontal progress bars with gradient color backgrounds
+  - Red → Orange → Yellow → Green color progression based on RSSI
+  - Shows exact dBm values and SNR when available
+  - Quality labels (Poor, Fair, Good, Excellent)
+  - Smooth transitions and animations
+  - High contrast and accessibility-friendly design
+  - Works for both direct and indirect nodes
+
+- **Signal Quality Thresholds**
+  - Excellent: > -60 dBm (green)
+  - Good: -60 to -75 dBm (yellow)
+  - Fair: -75 to -85 dBm (orange)
+  - Poor: < -85 dBm (red)
+
+- **Development Documentation**
+  - Created CLAUDE.md with development guidelines
+  - Added testing commands and project structure
+  - Documented common tasks and debugging tips
+
+### Improved
+- Enhanced node card display with integrated signal bars
+- Better visual hierarchy for signal information
+- Cleaner CSS styling for signal indicators
+
+### Testing
+- Added test_signal_bars.py script for signal visualization testing
+- Verified gradient display with various RSSI values
+
 ## [0.5.0] - 2025-01-24
 
 ### Added
