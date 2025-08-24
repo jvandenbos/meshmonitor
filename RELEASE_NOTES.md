@@ -1,5 +1,18 @@
 # Release Notes
 
+## [0.4.2] - 2025-01-24
+
+### Fixed
+- Duplicate "Message Traffic" and "Network Nodes" sections in Split View
+- Properly handle empty states in Split View columns
+- Column context management issues resolved
+- Removed problematic placeholder elements
+
+### Improved
+- Added "No messages yet" and "No nodes discovered yet" indicators
+- Cleaner Split View rendering without duplicates
+- Better control flow structure
+
 ## [0.4.1] - 2025-01-24
 
 ### Fixed
