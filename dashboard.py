@@ -179,6 +179,176 @@ def format_timestamp(timestamp_str):
         return timestamp_str
 
 
+def show_node_details(node_id: str):
+    """Show detailed information for a specific node."""
+    node = message_store.get_node(node_id)
+    if not node:
+        st.error(f"Node {node_id} not found")
+        return
+    
+    # Node header
+    st.header(f"📡 Node Details: {node.get('long_name', node_id)}")
+    
+    # Basic info in columns
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Node ID", node.get('id', 'Unknown'))
+        st.metric("Short Name", node.get('short_name', 'N/A'))
+        if node.get('hw_model'):
+            st.metric("Hardware", node.get('hw_model'))
+    
+    with col2:
+        st.metric("First Seen", format_time_ago(node.get('first_seen', '')))
+        st.metric("Last Seen", format_time_ago(node.get('last_seen', '')))
+        if node.get('hops') is not None:
+            st.metric("Hop Count", node.get('hops', 'Unknown'))
+    
+    with col3:
+        if node.get('battery_level'):
+            st.metric("Battery", f"{node.get('battery_level')}%")
+        if node.get('rssi'):
+            st.metric("RSSI", f"{node.get('rssi')} dBm")
+        if node.get('snr'):
+            st.metric("SNR", f"{node.get('snr')} dB")
+    
+    # Signal strength bar if available
+    if node.get('rssi'):
+        st.markdown("### Signal Strength")
+        signal_html = create_signal_bar(node.get('rssi'), node.get('snr'))
+        st.markdown(signal_html, unsafe_allow_html=True)
+    
+    # Position info if available
+    if node.get('latitude') and node.get('longitude'):
+        st.markdown("### 📍 Position")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Latitude", f"{node.get('latitude', 0):.6f}")
+        with col2:
+            st.metric("Longitude", f"{node.get('longitude', 0):.6f}")
+        with col3:
+            if node.get('altitude'):
+                st.metric("Altitude", f"{node.get('altitude', 0):.1f} m")
+            if node.get('distance_km'):
+                st.metric("Distance", f"{node.get('distance_km', 0):.2f} km")
+    
+    # Tabs for different data views
+    tab1, tab2, tab3 = st.tabs(["📊 Metrics History", "💬 Messages", "📈 Graphs"])
+    
+    with tab1:
+        st.subheader("Historical Metrics (Last 24 Hours)")
+        history = message_store.get_node_history(node_id, hours=24)
+        
+        if history:
+            # Convert to DataFrame for display
+            import pandas as pd
+            df = pd.DataFrame(history)
+            if not df.empty:
+                # Format timestamp
+                df['recorded_at'] = pd.to_datetime(df['recorded_at'])
+                df = df.sort_values('recorded_at', ascending=False)
+                
+                # Display relevant columns
+                display_cols = ['recorded_at', 'rssi', 'snr', 'battery_level', 'hops']
+                display_cols = [col for col in display_cols if col in df.columns]
+                
+                st.dataframe(
+                    df[display_cols].head(50),
+                    use_container_width=True,
+                    hide_index=True
+                )
+        else:
+            st.info("No historical data available for this node")
+    
+    with tab2:
+        st.subheader("Recent Messages")
+        # Get messages from this node
+        all_messages = message_store.get_messages(limit=100)
+        node_messages = [msg for msg in all_messages if msg.get('from') == node_id]
+        
+        if node_messages:
+            for msg in node_messages[:20]:  # Show last 20 messages
+                msg_type = msg.get('type', 'unknown')
+                timestamp = format_timestamp(msg.get('timestamp', ''))
+                
+                if msg_type == 'text':
+                    st.markdown(f"**💬 {timestamp}**: {msg.get('text', '')}")
+                else:
+                    st.markdown(f"**📦 {msg_type.upper()}** at {timestamp}")
+        else:
+            st.info("No messages from this node")
+    
+    with tab3:
+        st.subheader("Signal & Battery Trends")
+        history = message_store.get_node_history(node_id, hours=24)
+        
+        if history and len(history) > 1:
+            import pandas as pd
+            import plotly.graph_objects as go
+            from plotly.subplots import make_subplots
+            
+            df = pd.DataFrame(history)
+            df['recorded_at'] = pd.to_datetime(df['recorded_at'])
+            df = df.sort_values('recorded_at')
+            
+            # Create subplots
+            fig = make_subplots(
+                rows=2, cols=1,
+                subplot_titles=('Signal Strength (RSSI)', 'Battery Level'),
+                vertical_spacing=0.15
+            )
+            
+            # RSSI plot
+            if 'rssi' in df.columns and df['rssi'].notna().any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=df['recorded_at'],
+                        y=df['rssi'],
+                        mode='lines+markers',
+                        name='RSSI',
+                        line=dict(color='#00FFFF', width=2),
+                        marker=dict(size=6)
+                    ),
+                    row=1, col=1
+                )
+            
+            # Battery plot
+            if 'battery_level' in df.columns and df['battery_level'].notna().any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=df['recorded_at'],
+                        y=df['battery_level'],
+                        mode='lines+markers',
+                        name='Battery %',
+                        line=dict(color='#39FF14', width=2),
+                        marker=dict(size=6)
+                    ),
+                    row=2, col=1
+                )
+            
+            # Update layout
+            fig.update_layout(
+                height=500,
+                showlegend=False,
+                plot_bgcolor='#0A0A0A',
+                paper_bgcolor='#0A0A0A',
+                font=dict(color='#FFFFFF')
+            )
+            
+            fig.update_xaxes(gridcolor='#333333')
+            fig.update_yaxes(gridcolor='#333333')
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Not enough historical data for graphs (need at least 2 data points)")
+    
+    # Close button
+    if st.button("← Back to Node List", type="secondary"):
+        st.session_state.show_node_details = False
+        st.session_state.selected_node = None
+        st.rerun()
+
+
 def format_time_ago(timestamp_str):
     """Format time as 'X minutes ago'."""
     try:
@@ -232,6 +402,12 @@ def main():
     # Initialize session state
     if "service_started" not in st.session_state:
         st.session_state.service_started = False
+    
+    if "selected_node" not in st.session_state:
+        st.session_state.selected_node = None
+    
+    if "show_node_details" not in st.session_state:
+        st.session_state.show_node_details = False
     
     # Start service if not running
     if not st.session_state.service_started:
@@ -366,6 +542,11 @@ def main():
         **Note:** Meshtastic doesn't expose full routing 
         paths, only hop counts and direct neighbor info.
         """)
+    
+    # Check if we should show node details
+    if st.session_state.show_node_details and st.session_state.selected_node:
+        show_node_details(st.session_state.selected_node)
+        return  # Don't show the normal views
     
     # Main content area - FIXED: Properly structured if/elif blocks
     if view == "Split View":
@@ -512,9 +693,15 @@ def main():
                     # Position indicator
                     pos_str = "📍" if has_position else ""
                     
-                    # Node card with clean HTML
+                    # Node card with clean HTML and click button
                     card_html = f'<div class="node-card"><strong>{name}</strong> ({short_name})<br>{hop_str}{signal_bar}<div style="color: #8B949E; font-size: 0.9em; margin-top: 5px;">{node_id} • {time_ago}<br>{distance_str} {battery_str} {pos_str}</div></div>'
                     st.markdown(card_html, unsafe_allow_html=True)
+                    
+                    # Add view details button
+                    if st.button(f"📊 View Details", key=f"node_detail_{node_id}"):
+                        st.session_state.selected_node = node_id
+                        st.session_state.show_node_details = True
+                        st.rerun()
             else:
                 st.info("No nodes discovered yet")
     
