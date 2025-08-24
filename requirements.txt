@@ -34,7 +34,7 @@ rich==13.7.0
 click==8.1.7
 
 # UI
-streamlit==1.29.0
+streamlit==1.37.0
 streamlit-folium==0.15.0
 plotly==5.18.0
 networkx==3.2.1
