@@ -323,6 +323,18 @@ def main():
         for msg_type, count in stats["message_types"].items():
             st.text(f"{msg_type}: {count}")
         
+        # Database Persistence Stats
+        st.header("💾 Database Persistence")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("DB Nodes", stats.get("db_total_nodes", 0))
+            st.metric("Active (24h)", stats.get("db_active_nodes", 0))
+        with col2:
+            st.metric("DB Messages", stats.get("db_total_messages", 0))
+            st.metric("DB Size", f"{stats.get('db_size_mb', 0)} MB")
+        
+        st.success("✅ Data persisted to SQLite database")
+        
         # Hop Tracking Statistics
         st.header("🛣️ Hop Tracking Statistics")
         hop_summary = hop_tracker.get_hop_summary()
