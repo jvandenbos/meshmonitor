@@ -60,4 +60,6 @@ docker-compose.override.yml
 data/
 temp/
 cache/
-uploads/
+uploads/*.db
+*.sqlite
+*.sqlite3
