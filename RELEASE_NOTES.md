@@ -1,5 +1,25 @@
 # Release Notes
 
+## [0.4.1] - 2025-01-24
+
+### Fixed
+- HTML rendering issues with span tags completely resolved
+- Duplicate "Message Traffic" and "Network Nodes" sections removed
+- Signal strength bar now properly displays as gradient bar
+
+### Improved  
+- Hop count now displayed with prominent badges (DIRECT, 1 HOP, 2 HOPS)
+- Signal strength visualization with proper "Signal Strength" label
+- Gradient bar from red to yellow to green for signal quality
+- Clean HTML structure without stray tags
+- Better visual hierarchy in node cards
+
+### Added
+- Comprehensive README.md with full project documentation
+- Installation instructions and quick start guide
+- Troubleshooting section for common issues
+- Architecture overview and project structure
+
 ## [0.4.0] - 2025-01-24
 
 ### Added

@@ -293,32 +293,58 @@ def main():
                 rssi = node.get("rssi")
                 snr = node.get("snr")
                 
-                # Connection type indicator
+                # Connection type indicator with prominent display
                 if is_direct:
-                    hop_str = "📡 Direct"
-                    # Add signal strength bar for direct connections
+                    # Create signal strength bar for direct connections
                     if rssi:
                         # RSSI typically ranges from -120 (weak) to -40 (strong)
                         if rssi > -60:
-                            signal_bars = "▂▄▆█"
-                            signal_color = "#39FF14"  # Green
+                            signal_bar = """
+                            <div style="display: inline-block; vertical-align: middle;">
+                                <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
+                                <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
+                                    <div style="position: absolute; right: 0; top: 0; width: 90%; height: 100%; background: #39FF14; border-radius: 3px;"></div>
+                                </div>
+                                <span style="color: #39FF14; font-weight: bold;">{rssi}dBm</span>
+                            </div>
+                            """
                         elif rssi > -75:
-                            signal_bars = "▂▄▆_"
-                            signal_color = "#FFD700"  # Yellow
+                            signal_bar = f"""
+                            <div style="display: inline-block; vertical-align: middle;">
+                                <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
+                                <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
+                                    <div style="position: absolute; left: 0; top: 0; width: 70%; height: 100%; background: linear-gradient(to right, #FF0000, #FFD700); border-radius: 3px;"></div>
+                                </div>
+                                <span style="color: #FFD700; font-weight: bold;">{rssi}dBm</span>
+                            </div>
+                            """
                         elif rssi > -85:
-                            signal_bars = "▂▄__"
-                            signal_color = "#FFA500"  # Orange
-                        elif rssi > -95:
-                            signal_bars = "▂___"
-                            signal_color = "#FF6600"  # Dark Orange
+                            signal_bar = f"""
+                            <div style="display: inline-block; vertical-align: middle;">
+                                <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
+                                <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
+                                    <div style="position: absolute; left: 0; top: 0; width: 50%; height: 100%; background: linear-gradient(to right, #FF0000, #FFA500); border-radius: 3px;"></div>
+                                </div>
+                                <span style="color: #FFA500; font-weight: bold;">{rssi}dBm</span>
+                            </div>
+                            """
                         else:
-                            signal_bars = "▁___"
-                            signal_color = "#FF0000"  # Red
-                        hop_str = f'📡 Direct <span style="color: {signal_color}; font-family: monospace">{signal_bars}</span> {rssi}dBm'
+                            signal_bar = f"""
+                            <div style="display: inline-block; vertical-align: middle;">
+                                <span style="font-size: 0.8em; color: #8B949E;">Signal Strength:</span>
+                                <div style="display: inline-block; width: 60px; height: 12px; background: linear-gradient(to right, #FF0000 0%, #FFD700 50%, #39FF14 100%); border-radius: 3px; margin: 0 5px; position: relative;">
+                                    <div style="position: absolute; left: 0; top: 0; width: 25%; height: 100%; background: #FF0000; border-radius: 3px;"></div>
+                                </div>
+                                <span style="color: #FF0000; font-weight: bold;">{rssi}dBm</span>
+                            </div>
+                            """
+                        hop_str = f'<span style="background: #00FFFF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">📡 DIRECT</span><br>{signal_bar}'
+                    else:
+                        hop_str = '<span style="background: #00FFFF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">📡 DIRECT</span>'
                 elif hops != "?":
-                    hop_str = f"↗️ {hops} hop{'s' if hops != 1 else ''}"
+                    hop_str = f'<span style="background: #FF00FF22; padding: 2px 6px; border-radius: 3px; font-weight: bold;">↗️ {hops} HOP{"S" if hops != 1 else ""}</span>'
                 else:
-                    hop_str = ""
+                    hop_str = '<span style="background: #80808022; padding: 2px 6px; border-radius: 3px;">❓ UNKNOWN</span>'
                 
                 # Distance
                 distance = node.get("distance_km")
@@ -340,14 +366,15 @@ def main():
                 # Position indicator
                 pos_str = "📍" if has_position else ""
                 
-                # Node card - Fixed HTML with proper closing
+                # Node card with clean HTML
                 card_html = f'''
                 <div class="node-card">
                     <strong>{name}</strong> ({short_name})<br>
-                    <span style="color: #8B949E; font-size: 0.9em">
-                        {node_id} • {time_ago} • {hop_str}<br>
+                    {hop_str}<br>
+                    <div style="color: #8B949E; font-size: 0.9em; margin-top: 5px;">
+                        {node_id} • {time_ago}<br>
                         {distance_str} {battery_str} {pos_str}
-                    </span>
+                    </div>
                 </div>
                 '''
                 st.markdown(card_html, unsafe_allow_html=True)
