@@ -192,6 +192,11 @@ class MeshtasticDevice:
     def _on_packet(self, packet, interface):
         """Handle any packet (for logging all traffic)."""
         try:
+            # Extract hop information
+            hop_limit = packet.get("hopLimit", 0)
+            hop_start = packet.get("hopStart", 3)  # Default max hops is usually 3
+            hops_taken = hop_start - hop_limit if hop_start and hop_limit else 0
+            
             packet_data = {
                 "type": "packet",
                 "from": packet.get("fromId", "unknown"),
@@ -199,6 +204,12 @@ class MeshtasticDevice:
                 "port_num": packet.get("decoded", {}).get("portnum"),
                 "channel": packet.get("channel", 0),
                 "timestamp": datetime.now().isoformat(),
+                "hop_limit": hop_limit,
+                "hop_start": hop_start,
+                "hops": hops_taken,
+                "rssi": packet.get("rxRssi"),
+                "snr": packet.get("rxSnr"),
+                "via_mqtt": packet.get("viaMqtt", False),
                 "raw": packet
             }
             

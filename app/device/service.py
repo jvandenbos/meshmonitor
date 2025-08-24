@@ -116,6 +116,24 @@ class MeshtasticService:
             **data
         }
         message_store.add_message(message_data)
+        
+        # Update node hop count and signal info if available
+        if "from" in data:
+            node_id = data.get("from")
+            node_update = {}
+            
+            # Track hop count
+            if "hops" in data:
+                node_update["hops"] = data["hops"]
+                node_update["is_direct"] = data["hops"] == 0
+            
+            # Track signal strength for direct connections
+            if "rssi" in data and data.get("hops", 0) == 0:
+                node_update["rssi"] = data["rssi"]
+                node_update["snr"] = data.get("snr")
+            
+            if node_update:
+                message_store.add_or_update_node(node_id, node_update)
     
     async def _handle_text_message(self, message_type: str, data: Dict[str, Any]):
         """Handle text messages."""

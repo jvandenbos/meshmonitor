@@ -190,6 +190,18 @@ def main():
         st.header("📊 Statistics")
         for msg_type, count in stats["message_types"].items():
             st.text(f"{msg_type}: {count}")
+        
+        # Routing Info
+        st.header("🛣️ Routing Info")
+        st.info("""
+        **Available Routing Data:**
+        • Hop Count: Number of hops each packet took
+        • Direct connections show signal strength
+        • RSSI/SNR for direct connections only
+        
+        **Note:** Meshtastic doesn't expose full routing 
+        paths, only hop counts and direct neighbor info.
+        """)
     
     # Main content area
     if view == "Split View":
@@ -275,6 +287,39 @@ def main():
                 position = node.get("position", {})
                 has_position = bool(position.get("latitude"))
                 
+                # Get hop and signal info
+                hops = node.get("hops", "?")
+                is_direct = node.get("is_direct", False) or hops == 0
+                rssi = node.get("rssi")
+                snr = node.get("snr")
+                
+                # Connection type indicator
+                if is_direct:
+                    hop_str = "📡 Direct"
+                    # Add signal strength bar for direct connections
+                    if rssi:
+                        # RSSI typically ranges from -120 (weak) to -40 (strong)
+                        if rssi > -60:
+                            signal_bars = "▂▄▆█"
+                            signal_color = "#39FF14"  # Green
+                        elif rssi > -75:
+                            signal_bars = "▂▄▆_"
+                            signal_color = "#FFD700"  # Yellow
+                        elif rssi > -85:
+                            signal_bars = "▂▄__"
+                            signal_color = "#FFA500"  # Orange
+                        elif rssi > -95:
+                            signal_bars = "▂___"
+                            signal_color = "#FF6600"  # Dark Orange
+                        else:
+                            signal_bars = "▁___"
+                            signal_color = "#FF0000"  # Red
+                        hop_str = f'📡 Direct <span style="color: {signal_color}; font-family: monospace">{signal_bars}</span> {rssi}dBm'
+                elif hops != "?":
+                    hop_str = f"↗️ {hops} hop{'s' if hops != 1 else ''}"
+                else:
+                    hop_str = ""
+                
                 # Distance
                 distance = node.get("distance_km")
                 distance_str = f"📏 {distance:.1f} km" if distance else ""
@@ -295,16 +340,17 @@ def main():
                 # Position indicator
                 pos_str = "📍" if has_position else ""
                 
-                # Node card
-                st.markdown(f"""
+                # Node card - Fixed HTML with proper closing
+                card_html = f'''
                 <div class="node-card">
                     <strong>{name}</strong> ({short_name})<br>
                     <span style="color: #8B949E; font-size: 0.9em">
-                        {node_id} • {time_ago} {distance_str}<br>
-                        {battery_str} {pos_str}
+                        {node_id} • {time_ago} • {hop_str}<br>
+                        {distance_str} {battery_str} {pos_str}
                     </span>
                 </div>
-                """, unsafe_allow_html=True)
+                '''
+                st.markdown(card_html, unsafe_allow_html=True)
     
     elif view == "Messages Only":
         st.header("📨 Message Traffic")
@@ -345,13 +391,26 @@ def main():
             for node in nodes:
                 telemetry = node.get("telemetry", {})
                 position = node.get("position", {})
+                hops = node.get("hops", "?")
+                is_direct = node.get("is_direct", False) or hops == 0
+                rssi = node.get("rssi")
+                
+                # Format connection type
+                if is_direct:
+                    connection = f"Direct ({rssi}dBm)" if rssi else "Direct"
+                elif hops != "?":
+                    connection = f"{hops} hop{'s' if hops != 1 else ''}"
+                else:
+                    connection = "Unknown"
                 
                 df_data.append({
                     "Name": node.get("long_name", node.get("id")),
                     "ID": node.get("id"),
                     "Short": node.get("short_name", ""),
+                    "Connection": connection,
                     "Distance (km)": node.get("distance_km", ""),
                     "Battery (%)": telemetry.get("battery_level", ""),
+                    "SNR": node.get("snr", ""),
                     "Latitude": position.get("latitude", ""),
                     "Longitude": position.get("longitude", ""),
                     "Altitude (m)": position.get("altitude", ""),

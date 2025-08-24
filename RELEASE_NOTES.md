@@ -1,5 +1,34 @@
 # Release Notes
 
+## [0.4.0] - 2025-01-24
+
+### Added
+- Hop count display for all nodes
+- Signal strength bars for direct connections (visual RSSI indicator)
+- Color-coded signal bars (green=strong, yellow=good, orange=fair, red=weak)
+- Connection type column in nodes table
+- Routing information sidebar section
+- Smart node sorting: Direct connections first, then by hop count
+
+### Improved
+- Node list now shows connection type (Direct/1 hop/2 hops/etc)
+- Direct connections display RSSI in dBm with visual signal bars
+- Enhanced node metadata with SNR tracking
+- Better proximity sorting algorithm
+- Fixed HTML rendering issues (stray span tags)
+
+### Technical
+- Extract hop count from packet headers (hopLimit/hopStart)
+- Track is_direct flag for zero-hop nodes
+- Store RSSI/SNR for direct connections only
+- Improved packet routing analysis
+
+### UI Enhancements
+- Signal strength visualization: ▂▄▆█ (strong) to ▁___ (weak)
+- Connection type indicators: 📡 (direct) vs ↗️ (multi-hop)
+- Cleaner node card layout with hop information
+- Routing info documentation in sidebar
+
 ## [0.3.1] - 2025-01-24
 
 ### Fixed

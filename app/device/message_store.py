@@ -88,12 +88,19 @@ class MessageStore:
         nodes = list(self.nodes.values())
         
         if sort_by_proximity:
-            # Sort by distance if available, otherwise by last_updated
+            # Sort by: 1) Direct connections first, 2) Number of hops, 3) Distance
             def sort_key(node):
-                if "distance_km" in node:
-                    return (0, node["distance_km"])
-                else:
-                    return (1, node.get("last_updated", ""))
+                # First priority: Direct connection (hop count 0)
+                is_direct = node.get("is_direct", False) or node.get("hops", 999) == 0
+                
+                # Second priority: Number of hops
+                hops = node.get("hops", 999)
+                
+                # Third priority: Distance (for nodes at same hop level)
+                distance = node.get("distance_km", 9999)
+                
+                # Return tuple for sorting (direct connections first, then by hops, then by distance)
+                return (not is_direct, hops, distance)
             
             nodes.sort(key=sort_key)
         else:
