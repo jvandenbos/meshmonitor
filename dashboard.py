@@ -179,6 +179,205 @@ def format_timestamp(timestamp_str):
         return timestamp_str
 
 
+def create_network_graph():
+    """Create an interactive network graph visualization."""
+    import networkx as nx
+    import plotly.graph_objects as go
+    
+    # Get all nodes
+    nodes = message_store.get_nodes()
+    
+    if not nodes:
+        st.info("No nodes available for visualization")
+        return
+    
+    # Create a directed graph
+    G = nx.DiGraph()
+    
+    # Get user's node ID if available
+    my_node_id = str(device.device_info.get('node_id')) if device.device_info else None
+    
+    # Add nodes and edges based on hop count
+    node_positions = {}
+    node_colors = []
+    node_sizes = []
+    node_labels = []
+    edge_list = []
+    
+    # First, add all nodes to the graph
+    for node in nodes:
+        node_id = node.get('id', 'unknown')
+        G.add_node(node_id)
+        
+        # Create label
+        name = node.get('long_name', node_id)
+        short = node.get('short_name', '')
+        hops = node.get('hops', -1)
+        rssi = node.get('rssi')
+        battery = node.get('battery_level')
+        
+        label = f"{name}"
+        if short:
+            label += f" ({short})"
+        if hops >= 0:
+            label += f"<br>{hops} hops"
+        if rssi:
+            label += f"<br>{rssi} dBm"
+        if battery:
+            label += f"<br>🔋 {battery}%"
+        
+        node_labels.append(label)
+        
+        # Color based on connection type
+        if node_id == my_node_id:
+            node_colors.append('#FFD700')  # Gold for our node
+            node_sizes.append(25)
+        elif node.get('is_direct', False) or hops == 0:
+            node_colors.append('#00FFFF')  # Cyan for direct
+            node_sizes.append(20)
+        elif hops > 0 and hops < 999:
+            # Gradient from green to red based on hop count
+            if hops == 1:
+                node_colors.append('#39FF14')  # Green
+            elif hops == 2:
+                node_colors.append('#FFFF00')  # Yellow
+            elif hops == 3:
+                node_colors.append('#FFA500')  # Orange
+            else:
+                node_colors.append('#FF0000')  # Red for 4+ hops
+            node_sizes.append(15)
+        else:
+            node_colors.append('#808080')  # Gray for unknown
+            node_sizes.append(10)
+    
+    # Create edges based on hop relationships
+    # For simplicity, connect nodes to a central node based on hop count
+    if my_node_id and my_node_id in G.nodes():
+        for node in nodes:
+            node_id = node.get('id', 'unknown')
+            hops = node.get('hops', -1)
+            
+            if node_id != my_node_id:
+                if hops == 0:  # Direct connection
+                    G.add_edge(my_node_id, node_id)
+                    edge_list.append((my_node_id, node_id, 'direct'))
+                elif hops == 1:  # One hop away
+                    # Find a direct node to connect through
+                    for intermediate in nodes:
+                        if intermediate.get('hops', -1) == 0 and intermediate['id'] != my_node_id:
+                            G.add_edge(intermediate['id'], node_id)
+                            edge_list.append((intermediate['id'], node_id, '1-hop'))
+                            break
+    
+    # Use spring layout for positioning
+    try:
+        if len(G.nodes()) > 1:
+            pos = nx.spring_layout(G, k=2, iterations=50, seed=42)
+        else:
+            pos = {list(G.nodes())[0]: (0, 0)}
+    except:
+        # Fallback to circular layout if spring fails
+        pos = nx.circular_layout(G)
+    
+    # Extract node positions
+    node_x = []
+    node_y = []
+    for node in G.nodes():
+        x, y = pos[node]
+        node_x.append(x)
+        node_y.append(y)
+    
+    # Create edge traces
+    edge_traces = []
+    for edge in G.edges():
+        x0, y0 = pos[edge[0]]
+        x1, y1 = pos[edge[1]]
+        
+        # Determine edge color based on connection type
+        edge_color = '#00FFFF50'  # Default cyan with transparency
+        
+        edge_trace = go.Scatter(
+            x=[x0, x1, None],
+            y=[y0, y1, None],
+            mode='lines',
+            line=dict(width=2, color=edge_color),
+            hoverinfo='none',
+            showlegend=False
+        )
+        edge_traces.append(edge_trace)
+    
+    # Create node trace
+    node_trace = go.Scatter(
+        x=node_x,
+        y=node_y,
+        mode='markers+text',
+        marker=dict(
+            size=node_sizes,
+            color=node_colors,
+            line=dict(color='#FFFFFF', width=1),
+            symbol='circle'
+        ),
+        text=node_labels,
+        textposition='top center',
+        textfont=dict(size=10, color='#FFFFFF'),
+        hoverinfo='text',
+        hovertext=node_labels,
+        showlegend=False
+    )
+    
+    # Create figure
+    fig = go.Figure(data=edge_traces + [node_trace])
+    
+    # Update layout
+    fig.update_layout(
+        title={
+            'text': '🌐 Mesh Network Topology',
+            'x': 0.5,
+            'xanchor': 'center',
+            'font': {'size': 20, 'color': '#FFFFFF'}
+        },
+        showlegend=True,
+        hovermode='closest',
+        margin=dict(b=20, l=5, r=5, t=40),
+        plot_bgcolor='#0A0A0A',
+        paper_bgcolor='#0A0A0A',
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        height=600,
+        clickmode='event+select'
+    )
+    
+    # Add legend
+    legend_items = [
+        go.Scatter(x=[None], y=[None], mode='markers',
+                  marker=dict(size=10, color='#FFD700'),
+                  legendgroup='nodes', showlegend=True, name='Your Node'),
+        go.Scatter(x=[None], y=[None], mode='markers',
+                  marker=dict(size=10, color='#00FFFF'),
+                  legendgroup='nodes', showlegend=True, name='Direct Connection'),
+        go.Scatter(x=[None], y=[None], mode='markers',
+                  marker=dict(size=10, color='#39FF14'),
+                  legendgroup='nodes', showlegend=True, name='1 Hop'),
+        go.Scatter(x=[None], y=[None], mode='markers',
+                  marker=dict(size=10, color='#FFFF00'),
+                  legendgroup='nodes', showlegend=True, name='2 Hops'),
+        go.Scatter(x=[None], y=[None], mode='markers',
+                  marker=dict(size=10, color='#FFA500'),
+                  legendgroup='nodes', showlegend=True, name='3 Hops'),
+        go.Scatter(x=[None], y=[None], mode='markers',
+                  marker=dict(size=10, color='#FF0000'),
+                  legendgroup='nodes', showlegend=True, name='4+ Hops'),
+        go.Scatter(x=[None], y=[None], mode='markers',
+                  marker=dict(size=10, color='#808080'),
+                  legendgroup='nodes', showlegend=True, name='Unknown')
+    ]
+    
+    for item in legend_items:
+        fig.add_trace(item)
+    
+    return fig
+
+
 def show_node_details(node_id: str):
     """Show detailed information for a specific node."""
     node = message_store.get_node(node_id)
@@ -448,7 +647,7 @@ def main():
         # View selector
         view = st.radio(
             "View Mode",
-            ["Split View", "Messages Only", "Nodes Only", "Map View"],
+            ["Split View", "Messages Only", "Nodes Only", "Map View", "Network Graph"],
             index=0
         )
         
@@ -853,6 +1052,47 @@ def main():
             st_folium(m, height=600, width=None, returned_objects=[])
         else:
             st.info("No nodes with GPS positions yet")
+    
+    elif view == "Network Graph":
+        st.header("🌐 Network Topology")
+        
+        # Add info about the visualization
+        with st.expander("ℹ️ How to read this graph"):
+            st.markdown("""
+            **Node Colors:**
+            - 🟡 **Gold**: Your node (the connected device)
+            - 🔵 **Cyan**: Direct connections (0 hops)
+            - 🟢 **Green**: 1 hop away
+            - 🟡 **Yellow**: 2 hops away
+            - 🟠 **Orange**: 3 hops away
+            - 🔴 **Red**: 4+ hops away
+            - ⚫ **Gray**: Unknown hop count
+            
+            **Node Size:** Larger nodes are closer to you in the network
+            
+            **Lines:** Show connections between nodes
+            
+            **Hover:** Over nodes to see details (name, hops, signal, battery)
+            """)
+        
+        # Create and display the network graph
+        fig = create_network_graph()
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Statistics about the network
+            nodes = message_store.get_nodes()
+            if nodes:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    direct_nodes = sum(1 for n in nodes if n.get('is_direct', False) or n.get('hops', -1) == 0)
+                    st.metric("Direct Connections", direct_nodes)
+                with col2:
+                    multi_hop = sum(1 for n in nodes if n.get('hops', -1) > 0)
+                    st.metric("Multi-hop Nodes", multi_hop)
+                with col3:
+                    max_hops = max((n.get('hops', 0) for n in nodes if n.get('hops', -1) >= 0), default=0)
+                    st.metric("Max Hop Distance", max_hops)
     
     # Auto-refresh
     if auto_refresh:

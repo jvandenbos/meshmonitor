@@ -37,6 +37,7 @@ click==8.1.7
 streamlit==1.29.0
 streamlit-folium==0.15.0
 plotly==5.18.0
+networkx==3.2.1
 
 # Development
 pytest==7.4.3
