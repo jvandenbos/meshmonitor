@@ -1,5 +1,19 @@
 # Release Notes
 
+## [0.6.1] - 2025-08-25
+
+### Improved
+- **Enhanced Encrypted Packet Display**
+  - Encrypted packets now clearly labeled with 🔐 icon
+  - Shows source node ID and channel number
+  - Display format: "ENCRYPTED (Channel X) from Node XXXXXXXX"
+  - Visible in "All" message view mode
+  - Filtered out in Chat/Activity/System modes for cleaner display
+
+### Fixed
+- Replaced confusing "UNKNOWN from unknown" messages with proper encrypted packet identification
+- Improved packet type detection and display logic
+
 ## [0.6.0] - 2025-08-24
 
 ### Added

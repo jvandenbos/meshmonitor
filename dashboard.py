@@ -360,7 +360,8 @@ def filter_nodes_by_time(nodes: list, time_filter: str) -> list:
     if time_filter == 'all':
         return nodes
     
-    now = datetime.now(timezone.utc)
+    # Use local time to match the database timestamps
+    now = datetime.now()
     filtered_nodes = []
     
     # Initialize startup time if not set
@@ -373,7 +374,15 @@ def filter_nodes_by_time(nodes: list, time_filter: str) -> list:
             continue
             
         try:
+            # Parse the timestamp - it's already in local time from the database
             node_time = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+            # If the timestamp doesn't have timezone info, assume it's local time
+            if node_time.tzinfo is None:
+                node_time = node_time.replace(tzinfo=None)
+                now = datetime.now()  # Use local time for comparison
+            else:
+                now = datetime.now(timezone.utc)
+            
             time_diff = now - node_time
             
             if time_filter == '15min' and time_diff.total_seconds() <= 900:
@@ -384,10 +393,13 @@ def filter_nodes_by_time(nodes: list, time_filter: str) -> list:
                 filtered_nodes.append(node)
             elif time_filter == 'startup':
                 # Show nodes seen since the app started
-                if node_time >= st.session_state.startup_time:
+                if 'startup_time' not in st.session_state:
+                    st.session_state.startup_time = datetime.now()
+                if node_time >= st.session_state.startup_time.replace(tzinfo=None):
                     filtered_nodes.append(node)
-        except:
-            continue
+        except Exception as e:
+            # Include node if we can't parse the timestamp
+            filtered_nodes.append(node)
             
     return filtered_nodes
 
@@ -1188,15 +1200,16 @@ def main():
                 # Only text messages
                 messages = message_store.get_messages(limit=50, message_type='text')
             elif st.session_state.message_view_mode == 'system':
-                # Everything except text messages
+                # Everything except text messages (but exclude raw packets)
                 all_messages = message_store.get_messages(limit=100)
-                messages = [m for m in all_messages if m.get('type') != 'text'][:50]
+                messages = [m for m in all_messages if m.get('type') not in ['text', 'packet']][:50]
             elif st.session_state.message_view_mode == 'all':
                 # All messages unfiltered
                 messages = message_store.get_messages(limit=50)
-            else:  # activity mode - smart filtering
-                # All messages but with collapsed system messages
-                messages = message_store.get_messages(limit=50)
+            else:  # activity mode - exclude raw packet messages
+                # All messages except raw packets
+                all_messages = message_store.get_messages(limit=100)
+                messages = [m for m in all_messages if m.get('type') != 'packet'][:50]
             
             if messages:
                 # Display messages
@@ -1216,12 +1229,21 @@ def main():
                     elif msg_type == "nodeinfo":
                         emoji = "ℹ️"
                         color = "#FFD700"
+                    elif msg_type == "packet":
+                        emoji = "🔐"
+                        color = "#FF6B6B"
                     else:
                         emoji = "📦"
                         color = "#808080"
                     
-                    # Format message
+                    # Format message - handle packet type specially
                     from_node = msg.get("from", "unknown")
+                    if msg_type == "packet" and from_node != "unknown":
+                        # For encrypted packets, show the source node ID
+                        from_label = f"Node {from_node[:8]}" if len(from_node) > 8 else f"Node {from_node}"
+                    else:
+                        from_label = from_node
+                    
                     timestamp = format_timestamp(msg.get("timestamp", ""))
                     
                     # Create message display with enhanced styling
@@ -1235,11 +1257,19 @@ def main():
                         </div>
                         """, unsafe_allow_html=True)
                     else:
-                        # Use less prominent styling for system messages  
+                        # Use less prominent styling for system messages
+                        # Special handling for encrypted packets
+                        if msg_type == "packet":
+                            channel = msg.get("channel", 0)
+                            port = msg.get("port_num", "unknown")
+                            msg_display = f"ENCRYPTED (Channel {channel})"
+                        else:
+                            msg_display = msg_type.upper()
+                        
                         st.markdown(f"""
                         <div class="system-message-box">
-                            <strong style="color: {color}">{emoji} {msg_type.upper()}</strong> 
-                            from {from_node}
+                            <strong style="color: {color}">{emoji} {msg_display}</strong> 
+                            from {from_label}
                             <span style="color: #8B949E; font-size: 0.85em; float: right;">{timestamp}</span>
                         </div>
                         """, unsafe_allow_html=True)
@@ -1362,20 +1392,37 @@ def main():
             messages = message_store.get_messages(limit=100, message_type='text')
         elif st.session_state.message_view_mode == 'system':
             all_messages = message_store.get_messages(limit=200)
-            messages = [m for m in all_messages if m.get('type') != 'text'][:100]
-        else:  # activity mode
+            messages = [m for m in all_messages if m.get('type') not in ['text', 'packet']][:100]
+        elif st.session_state.message_view_mode == 'all':
             messages = message_store.get_messages(limit=100)
+        else:  # activity mode - exclude raw packets
+            all_messages = message_store.get_messages(limit=200)
+            messages = [m for m in all_messages if m.get('type') != 'packet'][:100]
         
         # Convert to DataFrame for better display
         if messages:
             df_data = []
             for msg in messages:
+                msg_type = msg.get("type", "unknown")
+                from_node = msg.get("from", "unknown")
+                
+                # Format content based on message type
+                if msg_type == "text":
+                    content = msg.get("text", "")
+                elif msg_type == "packet":
+                    content = f"[🔐 Encrypted - Channel {msg.get('channel', 0)}]"
+                    # Show node ID for encrypted packets
+                    if from_node != "unknown":
+                        from_node = f"Node {from_node[:8]}"
+                else:
+                    content = f"[{msg_type} data]"
+                
                 df_data.append({
                     "Time": format_timestamp(msg.get("timestamp", "")),
-                    "Type": msg.get("type", "unknown"),
-                    "From": msg.get("from", "unknown"),
+                    "Type": msg_type,
+                    "From": from_node,
                     "To": msg.get("to", ""),
-                    "Content": msg.get("text", "") if msg.get("type") == "text" else f"[{msg.get('type')} data]",
+                    "Content": content,
                     "Channel": msg.get("channel", 0),
                     "RSSI": msg.get("rssi", ""),
                     "SNR": msg.get("snr", "")
