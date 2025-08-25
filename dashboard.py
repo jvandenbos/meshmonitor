@@ -6,7 +6,7 @@ import pandas as pd
 import asyncio
 import sys
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 import folium
 from streamlit_folium import st_folium
 import time
@@ -54,6 +54,29 @@ def get_theme_css(theme: str = "dark") -> str:
                 padding: 10px;
                 margin: 5px 0;
                 color: #1F1F1F;
+            }
+            .chat-message-box {
+                background-color: #E3F2FD;
+                border: 2px solid #2196F3;
+                border-radius: 8px;
+                padding: 15px;
+                margin: 8px 0;
+                color: #1F1F1F;
+                font-size: 1.05em;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .system-message-box {
+                background-color: #F5F5F5;
+                border: 1px solid #9E9E9E44;
+                border-radius: 4px;
+                padding: 8px;
+                margin: 3px 0;
+                color: #616161;
+                font-size: 0.9em;
+                opacity: 0.8;
+            }
+            .stale-node {
+                opacity: 0.6;
             }
             .node-card {
                 background-color: #F8F9FA;
@@ -175,6 +198,29 @@ def get_theme_css(theme: str = "dark") -> str:
                 padding: 10px;
                 margin: 5px 0;
             }
+            .chat-message-box {
+                background-color: #0D47A1;
+                border: 2px solid #2196F3;
+                border-radius: 8px;
+                padding: 15px;
+                margin: 8px 0;
+                color: #FFFFFF;
+                font-size: 1.05em;
+                box-shadow: 0 2px 6px rgba(33,150,243,0.3);
+            }
+            .system-message-box {
+                background-color: #0D1117;
+                border: 1px solid #30363D;
+                border-radius: 4px;
+                padding: 8px;
+                margin: 3px 0;
+                color: #8B949E;
+                font-size: 0.9em;
+                opacity: 0.7;
+            }
+            .stale-node {
+                opacity: 0.5;
+            }
             .node-card {
                 background-color: #161B22;
                 border: 1px solid #39FF1433;
@@ -285,12 +331,65 @@ async def ensure_service_running():
 
 
 def format_timestamp(timestamp_str):
-    """Format timestamp for display."""
+    """Format timestamp for display with relative time."""
+    if not timestamp_str:
+        return ""
     try:
-        dt = datetime.fromisoformat(timestamp_str)
-        return dt.strftime("%H:%M:%S")
+        # Parse the timestamp
+        dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        now = datetime.now(dt.tzinfo or timezone.utc)
+        time_diff = now - dt
+        
+        # Format based on age
+        if time_diff.total_seconds() < 60:
+            return "just now"
+        elif time_diff.total_seconds() < 3600:
+            minutes = int(time_diff.total_seconds() / 60)
+            return f"{minutes}m ago"
+        elif time_diff.total_seconds() < 86400:
+            hours = int(time_diff.total_seconds() / 3600)
+            return f"{hours}h ago"
+        else:
+            return dt.strftime("%H:%M:%S")
     except:
         return timestamp_str
+
+
+def filter_nodes_by_time(nodes: list, time_filter: str) -> list:
+    """Filter nodes based on time since last seen."""
+    if time_filter == 'all':
+        return nodes
+    
+    now = datetime.now(timezone.utc)
+    filtered_nodes = []
+    
+    # Initialize startup time if not set
+    if 'startup_time' not in st.session_state:
+        st.session_state.startup_time = now
+    
+    for node in nodes:
+        last_seen = node.get('last_seen') or node.get('last_updated')
+        if not last_seen:
+            continue
+            
+        try:
+            node_time = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+            time_diff = now - node_time
+            
+            if time_filter == '15min' and time_diff.total_seconds() <= 900:
+                filtered_nodes.append(node)
+            elif time_filter == '1hour' and time_diff.total_seconds() <= 3600:
+                filtered_nodes.append(node)
+            elif time_filter == '24hours' and time_diff.total_seconds() <= 86400:
+                filtered_nodes.append(node)
+            elif time_filter == 'startup':
+                # Show nodes seen since the app started
+                if node_time >= st.session_state.startup_time:
+                    filtered_nodes.append(node)
+        except:
+            continue
+            
+    return filtered_nodes
 
 
 def create_network_graph():
@@ -924,13 +1023,72 @@ def main():
         # Auto-refresh
         auto_refresh = st.checkbox("Auto Refresh (5s)", value=True)
         
-        # Message filters
+        # Message filters with smart defaults
         st.header("🔍 Filters")
-        message_type_filter = st.selectbox(
-            "Message Type",
-            ["All", "text", "position", "nodeinfo", "telemetry", "packet"],
-            index=0
+        
+        # Initialize message view mode in session state
+        if 'message_view_mode' not in st.session_state:
+            st.session_state.message_view_mode = 'chat'  # Default to chat view
+        
+        # Smart message view selector - using radio buttons styled as toggle
+        st.markdown("**Message View:**")
+        message_view_mode = st.radio(
+            "Message View",
+            options=['chat', 'all', 'activity', 'system'],
+            format_func=lambda x: {
+                'chat': '💬 Chat',
+                'all': '📋 All',
+                'activity': '📢 Activity', 
+                'system': '⚙️ System'
+            }[x],
+            index=['chat', 'all', 'activity', 'system'].index(st.session_state.message_view_mode),
+            horizontal=True,
+            label_visibility="collapsed"
         )
+        st.session_state.message_view_mode = message_view_mode
+        
+        # Node freshness filter
+        st.markdown("**Node Activity:**")
+        node_time_filter = st.selectbox(
+            "Show nodes active in",
+            options=['15min', '1hour', '24hours', 'startup', 'all'],
+            format_func=lambda x: {
+                '15min': 'Last 15 Minutes',
+                '1hour': 'Last Hour',
+                '24hours': 'Last 24 Hours',
+                'startup': 'Since Startup',
+                'all': 'All Time'
+            }[x],
+            index=0,  # Default to 15 minutes
+            label_visibility="collapsed"
+        )
+        
+        # Session control buttons
+        st.divider()
+        st.header("📊 Session Controls")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Clear Messages", use_container_width=True,
+                        help="Clear in-memory messages and reload recent from database"):
+                message_store.messages.clear()
+                # Reload recent messages from DB
+                db_messages = message_store.db.get_messages(limit=100)
+                for msg in reversed(db_messages):
+                    message_store.messages.appendleft(msg)
+                st.success("Messages cleared!")
+                st.rerun()
+        
+        with col2:
+            if st.button("🔄 Reset Nodes", use_container_width=True,
+                        help="Clear node list and reload active nodes"):
+                message_store.nodes.clear()
+                # Reload nodes from DB
+                db_nodes = message_store.db.get_nodes(active_only=True, max_age_hours=1)
+                for node in db_nodes:
+                    message_store.nodes[node['id']] = node
+                st.success("Nodes reset!")
+                st.rerun()
         
         # Send message
         st.header("📤 Send Message")
@@ -1025,9 +1183,20 @@ def main():
         with col1:
             st.header("📨 Message Traffic")
             
-            # Get messages
-            msg_type = None if message_type_filter == "All" else message_type_filter
-            messages = message_store.get_messages(limit=50, message_type=msg_type)
+            # Get messages based on view mode
+            if st.session_state.message_view_mode == 'chat':
+                # Only text messages
+                messages = message_store.get_messages(limit=50, message_type='text')
+            elif st.session_state.message_view_mode == 'system':
+                # Everything except text messages
+                all_messages = message_store.get_messages(limit=100)
+                messages = [m for m in all_messages if m.get('type') != 'text'][:50]
+            elif st.session_state.message_view_mode == 'all':
+                # All messages unfiltered
+                messages = message_store.get_messages(limit=50)
+            else:  # activity mode - smart filtering
+                # All messages but with collapsed system messages
+                messages = message_store.get_messages(limit=50)
             
             if messages:
                 # Display messages
@@ -1055,22 +1224,23 @@ def main():
                     from_node = msg.get("from", "unknown")
                     timestamp = format_timestamp(msg.get("timestamp", ""))
                     
-                    # Create message display
+                    # Create message display with enhanced styling
                     if msg_type == "text":
                         text = msg.get("text", "")
                         st.markdown(f"""
-                        <div class="message-box">
-                            <strong style="color: {color}">{emoji} {from_node}</strong> 
-                            <span style="color: #8B949E; font-size: 0.9em">{timestamp}</span><br>
-                            {text}
+                        <div class="chat-message-box">
+                            <strong>{emoji} {from_node}</strong> 
+                            <span style="color: #8B949E; font-size: 0.85em; float: right;">{timestamp}</span><br>
+                            <div style="margin-top: 8px; font-size: 1.05em;">{text}</div>
                         </div>
                         """, unsafe_allow_html=True)
                     else:
+                        # Use less prominent styling for system messages  
                         st.markdown(f"""
-                        <div class="message-box">
+                        <div class="system-message-box">
                             <strong style="color: {color}">{emoji} {msg_type.upper()}</strong> 
                             from {from_node}
-                            <span style="color: #8B949E; font-size: 0.9em">{timestamp}</span>
+                            <span style="color: #8B949E; font-size: 0.85em; float: right;">{timestamp}</span>
                         </div>
                         """, unsafe_allow_html=True)
             else:
@@ -1090,6 +1260,9 @@ def main():
             
             # Get nodes
             nodes = message_store.get_nodes(sort_by_proximity=sort_proximity)
+            
+            # Apply time filter
+            nodes = filter_nodes_by_time(nodes, node_time_filter)
             
             # Filter nodes if requested
             if show_only_with_packets:
@@ -1184,9 +1357,14 @@ def main():
     elif view == "Messages Only":
         st.header("📨 Message Traffic")
         
-        # Get all messages
-        msg_type = None if message_type_filter == "All" else message_type_filter
-        messages = message_store.get_messages(limit=100, message_type=msg_type)
+        # Get messages based on view mode
+        if st.session_state.message_view_mode == 'chat':
+            messages = message_store.get_messages(limit=100, message_type='text')
+        elif st.session_state.message_view_mode == 'system':
+            all_messages = message_store.get_messages(limit=200)
+            messages = [m for m in all_messages if m.get('type') != 'text'][:100]
+        else:  # activity mode
+            messages = message_store.get_messages(limit=100)
         
         # Convert to DataFrame for better display
         if messages:
