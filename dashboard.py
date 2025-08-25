@@ -385,10 +385,15 @@ def create_network_graph():
             node_colors.append(0)  # Will use colorscale
             node_sizes.append(20)
             
-            name = node.get('long_name', node['id'][:8])
+            name = node.get('long_name') or node.get('id', 'unknown')[:8]
             short = node.get('short_name', '')
-            node_labels.append(short or name[:8])
-            node_hover.append(f"<b>YOUR NODE</b><br>{name}<br>ID: {node['id'][:8]}")
+            if short:
+                node_labels.append(short)
+            elif name:
+                node_labels.append(name[:8] if len(name) > 8 else name)
+            else:
+                node_labels.append(node.get('id', 'unknown')[:8])
+            node_hover.append(f"<b>YOUR NODE</b><br>{name}<br>ID: {node.get('id', 'unknown')[:8]}")
     
     # Position other nodes in concentric circles
     for hop_level in sorted([h for h in nodes_by_hop.keys() if h >= 0 and h < 999]):
@@ -416,7 +421,7 @@ def create_network_graph():
             node_y.append(y)
             
             # Create label and hover text
-            name = node.get('long_name', node['id'][:8])
+            name = node.get('long_name') or node.get('id', 'unknown')[:8]
             short = node.get('short_name', '')
             hops = node.get('hops', -1)
             rssi = node.get('rssi')
@@ -425,11 +430,16 @@ def create_network_graph():
             distance = node.get('distance_km')
             
             # Use short name or truncated long name for label
-            node_labels.append(short or name[:8])
+            if short:
+                node_labels.append(short)
+            elif name:
+                node_labels.append(name[:8] if len(name) > 8 else name)
+            else:
+                node_labels.append(node.get('id', 'unknown')[:8])
             
             # Create detailed hover text
             hover_text = f"<b>{name}</b>"
-            hover_text += f"<br>ID: {node['id'][:8]}"
+            hover_text += f"<br>ID: {node.get('id', 'unknown')[:8]}"
             if hops >= 0:
                 hover_text += f"<br>Hops: {hops}"
             if rssi is not None:
@@ -466,10 +476,15 @@ def create_network_graph():
             node_x.append(x)
             node_y.append(y)
             
-            name = node.get('long_name', node['id'][:8])
+            name = node.get('long_name') or node.get('id', 'unknown')[:8]
             short = node.get('short_name', '')
-            node_labels.append(short or name[:8])
-            node_hover.append(f"<b>{name}</b><br>ID: {node['id'][:8]}<br>Hops: Unknown")
+            if short:
+                node_labels.append(short)
+            elif name:
+                node_labels.append(name[:8] if len(name) > 8 else name)
+            else:
+                node_labels.append(node.get('id', 'unknown')[:8])
+            node_hover.append(f"<b>{name}</b><br>ID: {node.get('id', 'unknown')[:8]}<br>Hops: Unknown")
             
             node_colors.append(1.0)  # Max color for unknown
             node_sizes.append(10)
@@ -1135,12 +1150,28 @@ def main():
                     # Position indicator
                     pos_str = "📍" if has_position else ""
                     
-                    # Node card with clean HTML and click button
-                    card_html = f'<div class="node-card"><strong>{name}</strong> ({short_name})<br>{hop_str}{signal_bar}<div style="color: #8B949E; font-size: 0.9em; margin-top: 5px;">{node_id} • {time_ago}<br>{distance_str} {battery_str} {pos_str}</div></div>'
+                    # Node card with View Details button positioned inside
+                    card_html = f'''
+                    <div class="node-card" style="position: relative; min-height: 80px;">
+                        <div style="padding-right: 100px;">
+                            <strong>{name}</strong> ({short_name})<br>
+                            {hop_str}{signal_bar}
+                            <div style="color: #8B949E; font-size: 0.9em; margin-top: 5px;">
+                                {node_id} • {time_ago}<br>
+                                {distance_str} {battery_str} {pos_str}
+                            </div>
+                        </div>
+                        <div style="position: absolute; bottom: 10px; right: 10px;">
+                            <span style="background: #007AFF22; color: #007AFF; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 500; cursor: pointer;">📊 View Details</span>
+                        </div>
+                    </div>
+                    '''
+                    
+                    # Display the card
                     st.markdown(card_html, unsafe_allow_html=True)
                     
-                    # Add view details button
-                    if st.button(f"📊 View Details", key=f"node_detail_{node_id}"):
+                    # Add invisible button over the "View Details" area
+                    if st.button("", key=f"node_detail_{node_id}", help="View node details"):
                         st.session_state.selected_node = node_id
                         st.session_state.show_node_details = True
                         st.rerun()
