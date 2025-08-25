@@ -577,7 +577,7 @@ def create_network_graph():
     # Calculate plot range
     plot_range = (max_hops + 2) * 2.2 if max_hops > 0 else 10
     
-    # Update layout
+    # Update layout with enhanced interactivity
     fig.update_layout(
         title='<b>Network Topology - Radar View</b>',
         titlefont_size=16,
@@ -589,7 +589,8 @@ def create_network_graph():
             showgrid=False,
             zeroline=False,
             showticklabels=False,
-            range=[-plot_range, plot_range]
+            range=[-plot_range, plot_range],
+            fixedrange=False  # Allow zooming on x-axis
         ),
         yaxis=dict(
             showgrid=False,
@@ -597,12 +598,23 @@ def create_network_graph():
             showticklabels=False,
             range=[-plot_range, plot_range],
             scaleanchor='x',
-            scaleratio=1
+            scaleratio=1,
+            fixedrange=False  # Allow zooming on y-axis
         ),
         height=600,
         plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
+        paper_bgcolor='rgba(0,0,0,0)',
+        dragmode='pan',  # Default to pan mode
+        clickmode='event+select',
+        modebar=dict(
+            orientation='v',
+            bgcolor='rgba(255, 255, 255, 0.7)'
+        )
     )
+    
+    # Enable wheel zoom
+    fig.update_xaxes(fixedrange=False)
+    fig.update_yaxes(fixedrange=False)
     
     return fig
 
@@ -1340,10 +1352,35 @@ def main():
             **Hover:** Over nodes to see details (name, hops, signal, battery)
             """)
         
-        # Create and display the network graph
+        # Create and display the network graph with full interactivity
         fig = create_network_graph()
         if fig:
-            st.plotly_chart(fig, use_container_width=True)
+            # Display with config for enhanced interaction
+            config = {
+                'displayModeBar': True,  # Always show the modebar
+                'displaylogo': False,
+                'modeBarButtonsToAdd': ['drawline', 'drawopenpath', 'eraseshape'],
+                'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
+                'toImageButtonOptions': {
+                    'format': 'png',
+                    'filename': 'network_topology',
+                    'height': 800,
+                    'width': 1200,
+                    'scale': 2
+                }
+            }
+            st.plotly_chart(fig, use_container_width=True, config=config)
+            
+            # Add instructions for interactivity
+            with st.expander("📖 Graph Controls", expanded=False):
+                st.markdown("""
+                **Interactive Controls:**
+                - 🔍 **Zoom**: Scroll or use zoom buttons
+                - ✋ **Pan**: Click and drag to move around
+                - 🏠 **Reset**: Double-click to reset view
+                - 📷 **Save**: Click camera icon to download image
+                - 🎯 **Hover**: Point at nodes for details
+                """)
             
             # Statistics about the network
             nodes = message_store.get_nodes()
