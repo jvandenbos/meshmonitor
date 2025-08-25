@@ -1150,31 +1150,22 @@ def main():
                     # Position indicator
                     pos_str = "📍" if has_position else ""
                     
-                    # Node card with View Details button positioned inside
-                    card_html = f'''
-                    <div class="node-card" style="position: relative; min-height: 80px;">
-                        <div style="padding-right: 100px;">
-                            <strong>{name}</strong> ({short_name})<br>
-                            {hop_str}{signal_bar}
-                            <div style="color: #8B949E; font-size: 0.9em; margin-top: 5px;">
-                                {node_id} • {time_ago}<br>
-                                {distance_str} {battery_str} {pos_str}
-                            </div>
-                        </div>
-                        <div style="position: absolute; bottom: 10px; right: 10px;">
-                            <span style="background: #007AFF22; color: #007AFF; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 500; cursor: pointer;">📊 View Details</span>
-                        </div>
-                    </div>
-                    '''
-                    
-                    # Display the card
-                    st.markdown(card_html, unsafe_allow_html=True)
-                    
-                    # Add invisible button over the "View Details" area
-                    if st.button("", key=f"node_detail_{node_id}", help="View node details"):
-                        st.session_state.selected_node = node_id
-                        st.session_state.show_node_details = True
-                        st.rerun()
+                    # Simplified node card using Streamlit columns for proper button placement
+                    with st.container():
+                        col1, col2 = st.columns([5, 1])
+                        
+                        with col1:
+                            # Node information in a clean card
+                            card_html = f'<div class="node-card"><strong>{name}</strong> ({short_name})<br>{hop_str}{signal_bar}<div style="color: #8B949E; font-size: 0.9em; margin-top: 5px;">{node_id} • {time_ago}<br>{distance_str} {battery_str} {pos_str}</div></div>'
+                            st.markdown(card_html, unsafe_allow_html=True)
+                        
+                        with col2:
+                            # Properly positioned button that's actually clickable
+                            st.markdown('<div style="height: 25px;"></div>', unsafe_allow_html=True)  # Spacer
+                            if st.button("📊 Details", key=f"node_{node_id}"):
+                                st.session_state.selected_node = node_id
+                                st.session_state.show_node_details = True
+                                st.rerun()
             else:
                 st.info("No nodes discovered yet")
     
