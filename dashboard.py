@@ -294,133 +294,218 @@ def format_timestamp(timestamp_str):
 
 
 def create_network_graph():
-    """Create an interactive network graph visualization."""
+    """Create an interactive radial/radar network graph visualization."""
     import networkx as nx
     import plotly.graph_objects as go
+    import math
+    import numpy as np
     
     # Get all nodes
     nodes = message_store.get_nodes()
     
     if not nodes:
         st.info("No nodes available for visualization")
-        return
-    
-    # Create a directed graph
-    G = nx.DiGraph()
+        return None
     
     # Get user's node ID if available
     my_node_id = str(device.device_info.get('node_id')) if device.device_info else None
     
-    # Add nodes and edges based on hop count
+    # Organize nodes by hop count
+    nodes_by_hop = {}
+    max_hops = 0
+    
+    for node in nodes:
+        node_id = node.get('id', 'unknown')
+        hops = node.get('hops', -1)
+        
+        # Handle special cases
+        if node_id == my_node_id:
+            hop_level = 0  # Center position for our node
+        elif hops < 0:
+            hop_level = 999  # Unknown nodes go to outer ring
+        else:
+            hop_level = hops
+            if hops < 999:
+                max_hops = max(max_hops, hops)
+        
+        if hop_level not in nodes_by_hop:
+            nodes_by_hop[hop_level] = []
+        nodes_by_hop[hop_level].append(node)
+    
+    # Create traces for radial grid lines first
+    grid_traces = []
+    
+    # Add concentric circles for each hop level
+    for hop_level in range(max_hops + 2):
+        radius = (hop_level + 1) * 2.0
+        theta = np.linspace(0, 2 * np.pi, 100)
+        x_circle = radius * np.cos(theta)
+        y_circle = radius * np.sin(theta)
+        
+        grid_traces.append(go.Scatter(
+            x=x_circle,
+            y=y_circle,
+            mode='lines',
+            line=dict(color='rgba(125, 125, 125, 0.2)', width=1, dash='dot'),
+            hoverinfo='skip',
+            showlegend=False
+        ))
+    
+    # Add radial lines (spokes)
+    for angle in np.linspace(0, 2 * np.pi, 12, endpoint=False):
+        x_line = [0, (max_hops + 2) * 2.0 * np.cos(angle)]
+        y_line = [0, (max_hops + 2) * 2.0 * np.sin(angle)]
+        
+        grid_traces.append(go.Scatter(
+            x=x_line,
+            y=y_line,
+            mode='lines',
+            line=dict(color='rgba(125, 125, 125, 0.1)', width=0.5),
+            hoverinfo='skip',
+            showlegend=False
+        ))
+    
+    # Create radial positions for nodes
     node_positions = {}
+    node_x = []
+    node_y = []
     node_colors = []
     node_sizes = []
     node_labels = []
-    edge_list = []
+    node_hover = []
     
-    # First, add all nodes to the graph
-    for node in nodes:
-        node_id = node.get('id', 'unknown')
-        G.add_node(node_id)
-        
-        # Create label
-        name = node.get('long_name', node_id)
-        short = node.get('short_name', '')
-        hops = node.get('hops', -1)
-        rssi = node.get('rssi')
-        battery = node.get('battery_level')
-        
-        label = f"{name}"
-        if short:
-            label += f" ({short})"
-        if hops >= 0:
-            label += f"<br>{hops} hops"
-        if rssi:
-            label += f"<br>{rssi} dBm"
-        if battery:
-            label += f"<br>🔋 {battery}%"
-        
-        node_labels.append(label)
-        
-        # Color based on connection type
-        if node_id == my_node_id:
-            node_colors.append('#FFD700')  # Gold for our node
-            node_sizes.append(25)
-        elif node.get('is_direct', False) or hops == 0:
-            node_colors.append('#00FFFF')  # Cyan for direct
+    # Position our node at center if available
+    if my_node_id and 0 in nodes_by_hop:
+        my_nodes = [n for n in nodes_by_hop[0] if n['id'] == my_node_id]
+        if my_nodes:
+            node = my_nodes[0]
+            node_positions[node['id']] = (0, 0)
+            node_x.append(0)
+            node_y.append(0)
+            node_colors.append(0)  # Will use colorscale
             node_sizes.append(20)
-        elif hops > 0 and hops < 999:
-            # Gradient from green to red based on hop count
-            if hops == 1:
-                node_colors.append('#39FF14')  # Green
-            elif hops == 2:
-                node_colors.append('#FFFF00')  # Yellow
-            elif hops == 3:
-                node_colors.append('#FFA500')  # Orange
+            
+            name = node.get('long_name', node['id'][:8])
+            short = node.get('short_name', '')
+            node_labels.append(short or name[:8])
+            node_hover.append(f"<b>YOUR NODE</b><br>{name}<br>ID: {node['id'][:8]}")
+    
+    # Position other nodes in concentric circles
+    for hop_level in sorted([h for h in nodes_by_hop.keys() if h >= 0 and h < 999]):
+        nodes_at_level = nodes_by_hop.get(hop_level, [])
+        
+        # Skip center node if it's our node
+        if hop_level == 0 and my_node_id:
+            nodes_at_level = [n for n in nodes_at_level if n['id'] != my_node_id]
+        
+        if not nodes_at_level:
+            continue
+            
+        radius = (hop_level + 1) * 2.0  # Each hop level gets progressively larger radius
+        count = len(nodes_at_level)
+        
+        for i, node in enumerate(nodes_at_level):
+            # Distribute nodes evenly around the circle
+            angle = (2 * math.pi * i) / count - math.pi/2  # Start from top
+            
+            x = radius * math.cos(angle)
+            y = radius * math.sin(angle)
+            
+            node_positions[node['id']] = (x, y)
+            node_x.append(x)
+            node_y.append(y)
+            
+            # Create label and hover text
+            name = node.get('long_name', node['id'][:8])
+            short = node.get('short_name', '')
+            hops = node.get('hops', -1)
+            rssi = node.get('rssi')
+            snr = node.get('snr')
+            battery = node.get('battery_level')
+            distance = node.get('distance_km')
+            
+            # Use short name or truncated long name for label
+            node_labels.append(short or name[:8])
+            
+            # Create detailed hover text
+            hover_text = f"<b>{name}</b>"
+            hover_text += f"<br>ID: {node['id'][:8]}"
+            if hops >= 0:
+                hover_text += f"<br>Hops: {hops}"
+            if rssi is not None:
+                hover_text += f"<br>RSSI: {rssi} dBm"
+            if snr is not None:
+                hover_text += f"<br>SNR: {snr} dB"
+            if battery is not None:
+                hover_text += f"<br>Battery: {battery}%"
+            if distance is not None:
+                hover_text += f"<br>Distance: {distance} km"
+            
+            node_hover.append(hover_text)
+            
+            # Color value based on hop count (normalized for colorscale)
+            if hops >= 0:
+                node_colors.append(min(hops / 4.0, 1.0))
             else:
-                node_colors.append('#FF0000')  # Red for 4+ hops
-            node_sizes.append(15)
-        else:
-            node_colors.append('#808080')  # Gray for unknown
+                node_colors.append(1.0)  # Unknown = max color
+            
+            node_sizes.append(12)
+    
+    # Handle unknown nodes (place them in outer ring)
+    if 999 in nodes_by_hop:
+        radius = (max_hops + 2) * 2.0
+        unknown_nodes = nodes_by_hop[999]
+        count = len(unknown_nodes)
+        
+        for i, node in enumerate(unknown_nodes):
+            angle = (2 * math.pi * i) / count - math.pi/2 if count > 0 else 0
+            x = radius * math.cos(angle)
+            y = radius * math.sin(angle)
+            
+            node_positions[node['id']] = (x, y)
+            node_x.append(x)
+            node_y.append(y)
+            
+            name = node.get('long_name', node['id'][:8])
+            short = node.get('short_name', '')
+            node_labels.append(short or name[:8])
+            node_hover.append(f"<b>{name}</b><br>ID: {node['id'][:8]}<br>Hops: Unknown")
+            
+            node_colors.append(1.0)  # Max color for unknown
             node_sizes.append(10)
     
-    # Create edges based on hop relationships
-    # For simplicity, connect nodes to a central node based on hop count
-    if my_node_id and my_node_id in G.nodes():
-        for node in nodes:
-            node_id = node.get('id', 'unknown')
-            hops = node.get('hops', -1)
+    # Create edge traces connecting nodes between hop levels
+    edge_x = []
+    edge_y = []
+    
+    # Connect nodes from each hop level to adjacent levels
+    for hop_level in sorted([h for h in nodes_by_hop.keys() if h >= 0 and h < 999]):
+        next_hop = hop_level + 1
+        if next_hop in nodes_by_hop and next_hop < 999:
+            # Connect some nodes between levels for visual clarity
+            current_nodes = nodes_by_hop[hop_level]
+            next_nodes = nodes_by_hop[next_hop]
             
-            if node_id != my_node_id:
-                if hops == 0:  # Direct connection
-                    G.add_edge(my_node_id, node_id)
-                    edge_list.append((my_node_id, node_id, 'direct'))
-                elif hops == 1:  # One hop away
-                    # Find a direct node to connect through
-                    for intermediate in nodes:
-                        if intermediate.get('hops', -1) == 0 and intermediate['id'] != my_node_id:
-                            G.add_edge(intermediate['id'], node_id)
-                            edge_list.append((intermediate['id'], node_id, '1-hop'))
-                            break
+            # Limit connections to avoid clutter
+            for curr_node in current_nodes[:5]:  # Limit to first 5 nodes
+                if curr_node['id'] in node_positions:
+                    x0, y0 = node_positions[curr_node['id']]
+                    for next_node in next_nodes[:3]:  # Connect to up to 3 nodes in next level
+                        if next_node['id'] in node_positions:
+                            x1, y1 = node_positions[next_node['id']]
+                            edge_x.extend([x0, x1, None])
+                            edge_y.extend([y0, y1, None])
     
-    # Use spring layout for positioning
-    try:
-        if len(G.nodes()) > 1:
-            pos = nx.spring_layout(G, k=2, iterations=50, seed=42)
-        else:
-            pos = {list(G.nodes())[0]: (0, 0)}
-    except:
-        # Fallback to circular layout if spring fails
-        pos = nx.circular_layout(G)
+    edge_trace = go.Scatter(
+        x=edge_x,
+        y=edge_y,
+        mode='lines',
+        line=dict(width=1, color='rgba(125, 125, 125, 0.3)'),
+        hoverinfo='none',
+        showlegend=False
+    )
     
-    # Extract node positions
-    node_x = []
-    node_y = []
-    for node in G.nodes():
-        x, y = pos[node]
-        node_x.append(x)
-        node_y.append(y)
-    
-    # Create edge traces
-    edge_traces = []
-    for edge in G.edges():
-        x0, y0 = pos[edge[0]]
-        x1, y1 = pos[edge[1]]
-        
-        # Determine edge color based on connection type
-        edge_color = '#00FFFF50'  # Default cyan with transparency
-        
-        edge_trace = go.Scatter(
-            x=[x0, x1, None],
-            y=[y0, y1, None],
-            mode='lines',
-            line=dict(width=2, color=edge_color),
-            hoverinfo='none',
-            showlegend=False
-        )
-        edge_traces.append(edge_trace)
-    
-    # Create node trace
+    # Create node trace with colorscale
     node_trace = go.Scatter(
         x=node_x,
         y=node_y,
@@ -428,69 +513,81 @@ def create_network_graph():
         marker=dict(
             size=node_sizes,
             color=node_colors,
-            line=dict(color='#FFFFFF', width=1),
-            symbol='circle'
+            colorscale=[
+                [0, 'green'],
+                [0.25, 'yellowgreen'],
+                [0.5, 'yellow'],
+                [0.75, 'orange'],
+                [1, 'red']
+            ],
+            showscale=True,
+            colorbar=dict(
+                thickness=15,
+                title="Hop Distance",
+                xanchor='left',
+                titleside='right',
+                tickmode='array',
+                tickvals=[0, 0.25, 0.5, 0.75, 1],
+                ticktext=['0', '1', '2', '3', '4+']
+            ),
+            line=dict(color='white', width=2)
         ),
         text=node_labels,
         textposition='top center',
-        textfont=dict(size=10, color='#FFFFFF'),
+        textfont=dict(size=9),
         hoverinfo='text',
-        hovertext=node_labels,
+        hovertext=node_hover,
         showlegend=False
     )
     
-    # Create figure
-    fig = go.Figure(data=edge_traces + [node_trace])
+    # Add hop level annotations
+    annotations = []
+    for hop_level in range(min(max_hops + 1, 5)):  # Limit to 5 levels for clarity
+        if hop_level == 0:
+            continue  # Skip center
+        radius = (hop_level + 1) * 2.0
+        annotations.append(dict(
+            x=0,
+            y=-radius - 0.3,
+            text=f"{hop_level} hop{'s' if hop_level != 1 else ''}",
+            showarrow=False,
+            font=dict(size=10, color='gray'),
+            xanchor='center'
+        ))
     
-    # Update layout based on theme
-    bg_color = '#FFFFFF' if st.session_state.theme == 'light' else '#0A0A0A'
-    text_color = '#1F1F1F' if st.session_state.theme == 'light' else '#FFFFFF'
+    # Create figure with all traces
+    all_traces = grid_traces + [edge_trace, node_trace]
+    fig = go.Figure(data=all_traces)
     
+    # Calculate plot range
+    plot_range = (max_hops + 2) * 2.2 if max_hops > 0 else 10
+    
+    # Update layout
     fig.update_layout(
-        title={
-            'text': '🌐 Mesh Network Topology',
-            'x': 0.5,
-            'xanchor': 'center',
-            'font': {'size': 20, 'color': text_color}
-        },
-        showlegend=True,
+        title='<b>Network Topology - Radar View</b>',
+        titlefont_size=16,
+        showlegend=False,
         hovermode='closest',
         margin=dict(b=20, l=5, r=5, t=40),
-        plot_bgcolor=bg_color,
-        paper_bgcolor=bg_color,
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        annotations=annotations,
+        xaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            showticklabels=False,
+            range=[-plot_range, plot_range]
+        ),
+        yaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            showticklabels=False,
+            range=[-plot_range, plot_range],
+            scaleanchor='x',
+            scaleratio=1
+        ),
         height=600,
-        clickmode='event+select'
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)'
     )
-    
-    # Add legend
-    legend_items = [
-        go.Scatter(x=[None], y=[None], mode='markers',
-                  marker=dict(size=10, color='#FFD700'),
-                  legendgroup='nodes', showlegend=True, name='Your Node'),
-        go.Scatter(x=[None], y=[None], mode='markers',
-                  marker=dict(size=10, color='#00FFFF'),
-                  legendgroup='nodes', showlegend=True, name='Direct Connection'),
-        go.Scatter(x=[None], y=[None], mode='markers',
-                  marker=dict(size=10, color='#39FF14'),
-                  legendgroup='nodes', showlegend=True, name='1 Hop'),
-        go.Scatter(x=[None], y=[None], mode='markers',
-                  marker=dict(size=10, color='#FFFF00'),
-                  legendgroup='nodes', showlegend=True, name='2 Hops'),
-        go.Scatter(x=[None], y=[None], mode='markers',
-                  marker=dict(size=10, color='#FFA500'),
-                  legendgroup='nodes', showlegend=True, name='3 Hops'),
-        go.Scatter(x=[None], y=[None], mode='markers',
-                  marker=dict(size=10, color='#FF0000'),
-                  legendgroup='nodes', showlegend=True, name='4+ Hops'),
-        go.Scatter(x=[None], y=[None], mode='markers',
-                  marker=dict(size=10, color='#808080'),
-                  legendgroup='nodes', showlegend=True, name='Unknown')
-    ]
-    
-    for item in legend_items:
-        fig.add_trace(item)
     
     return fig
 
